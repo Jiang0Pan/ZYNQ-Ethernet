@@ -1,0 +1,46 @@
+/*
+  ** @file           : mt25ql512.h
+  ** @brief          : The Device Of MT25QL512(QSPI FLASH Device) Header File
+  **
+  ** @attention
+  **
+  ** Copyright (c) 2020 ChengDuHangke.
+  ** All rights reserved.
+  **
+  ** This software is licensed by ChengDuHangke under Ultimate Liberty license
+  **
+*/
+
+
+#ifndef SRC_INCLUDE_DEVICE_QSPI_MT25QL512_C_
+#define SRC_INCLUDE_DEVICE_QSPI_MT25QL512_C_
+
+
+/*
+  ** Include
+*/
+#include "xil_types.h"
+
+
+/*
+  ** Function Prototype
+*/
+void update_flash(u8 *buffer, u32 length ,u32 crcval);
+void FlashErase(XQspiPs *QspiPtr, u32 Address, u32 ByteCount, u8 *WriteBfrPtr);
+void FlashWrite(XQspiPs *QspiPtr, u32 Address, u32 ByteCount, u8 Command,
+				u8 *WriteBfrPtr);
+int FlashReadID(XQspiPs *QspiPtr, u8 *WriteBfrPtr, u8 *ReadBfrPtr);
+void FlashRead(XQspiPs *QspiPtr, u32 Address, u32 ByteCount, u8 Command,
+				u8 *WriteBfrPtr, u8 *ReadBfrPtr);
+int SendBankSelect(XQspiPs *QspiPtr, u8 *WriteBfrPtr, u32 BankSel);
+void BulkErase(XQspiPs *QspiPtr, u8 *WriteBfrPtr);
+void DieErase(XQspiPs *QspiPtr, u8 *WriteBfrPtr);
+u32 GetRealAddr(XQspiPs *QspiPtr, u32 Address);
+
+
+#endif /* SRC_INCLUDE_DEVICE_QSPI_MT25QL512_C_ */
+
+
+/*
+  ** (C) COPYRIGHT ChengDuHangke END OF FILE
+*/

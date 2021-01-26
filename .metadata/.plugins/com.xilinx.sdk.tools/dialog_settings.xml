@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<section name="Workbench">
+	<item value="pl004_chk200728_i_top_hw_platform_0" key="programflash.hwplatform"/>
+	<item value="" key="pl004_chk200728_i_top_hw_platform_0-fsblFile"/>
+	<item value="Local" key="pl004_chk200728_i_top_hw_platform_0-target"/>
+	<item value="" key="pl004_chk200728_i_top_hw_platform_0-offSet"/>
+	<item value="qspi_single" key="pl004_chk200728_i_top_hw_platform_0-flashType"/>
+	<item value="E:\Benchmaking_DI\Software\HRIF_2010\bootimage\BOOT.bin" key="pl004_chk200728_i_top_hw_platform_0-imgFile"/>
+	<item value="true" key="pl004_chk200728_i_top_hw_platform_0-verifyFlash"/>
+	<item value="Auto Detect" key="pl004_chk200728_i_top_hw_platform_0-device"/>
+	<item value="false" key="pl004_chk200728_i_top_hw_platform_0-blankCheck"/>
+</section>

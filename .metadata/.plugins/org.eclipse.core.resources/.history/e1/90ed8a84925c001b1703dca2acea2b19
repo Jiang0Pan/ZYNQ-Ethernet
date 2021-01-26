@@ -1,0 +1,91 @@
+/*
+  ** @file           : w25q256.h
+  ** @brief          : The Device Of W25Q256(SPI FLASH Device) Header File
+  **
+  ** @attention
+  **
+  ** Copyright (c) 2020 ChengDuHangke.
+  ** All rights reserved.
+  **
+  ** This software is licensed by ChengDuHangke under Ultimate Liberty license
+  **
+*/
+
+
+#ifndef SRC_INCLUDE_DEVICE_SPI_W25Q256_H_
+#define SRC_INCLUDE_DEVICE_SPI_W25Q256_H_
+
+
+/*
+  ** Include
+*/
+#include "xil_types.h"
+
+
+/*
+  ** Define
+*/
+
+
+/*
+  ** Typedef
+*/
+typedef struct REG_STS {
+	union {
+		struct {
+			/* Erase/Write In Progress . Read Only . S0 */
+			u32 BUSY : 1;
+			/* Write Enable Latch . Read Only . S1 */
+			u32 WEL : 1;
+			/* Block Protect Bit0 . S2 */
+			u32 BP0 : 1;
+			/* Block Protect Bit1 . S3 */
+			u32 BP1 : 1;
+			/* Block Protect Bit2 . S4 */
+			u32 BP2 : 1;
+			/* Block Protect Bit3 . S5 */
+			u32 BP3 : 1;
+			/* Top/Buttom Protect Bit . S6 */
+			u32 TB : 1;
+			/* Status Register Protect . S7 */
+			u32 SRP : 1;
+			/* Status Register Protect1 . S8 */
+			u32 SRL : 1;
+			/* Quad Enable . S9*/
+			u32 QE : 1;
+			/* Reserved0 . S10 */
+			u32 R0 : 1;
+			/* Security Register Lock Bit1 . S11 */
+			u32 LB1 : 1;
+			/* Security Register Lock Bit2 . S12 */
+			u32 LB2 : 1;
+			/* Security Register Lock Bit2 . S13 */
+			u32 LB3 : 1;
+			/* Complement Protect . S14 */
+			u32 CMP : 1;
+			/* Suspend Status . S15 */
+			u32 SUS : 1;
+			/* Current Address Mode . S16 */
+			u32 ADS : 1;
+			/* Power Up Address Mode . S17 */
+			u32 ADP : 1;
+			/* Write Protect Selection . S18 */
+			u32 WPS : 1;
+			/* Reserved1 . S19 */
+			u32 R0 : 1;
+			/* Reserved2 . S20 */
+			u32 R0 : 1;
+
+
+		};
+		u8 Data;
+	};
+}Reg_Sts_t;
+
+
+#endif /* SRC_INCLUDE_DEVICE_SPI_W25Q256_H_ */
+
+
+/*
+  ** (C) COPYRIGHT ChengDuHangke END OF FILE
+*/

@@ -1,0 +1,1508 @@
+/*
+  ** @file           : operation.c
+  ** @brief          : Tcp Data Operation Source File
+  **
+  ** @attention
+  **
+  ** Copyright (c) 2020 ChengDuHangke.
+  ** All rights reserved.
+  **
+  ** This software is licensed by ChengDuHangke under Ultimate Liberty license
+  **
+*/
+
+
+/*
+  ** Include
+*/
+#include "return_val.h"
+#include "debug_config.h"
+#include "app_layer_protocol.h"
+#include "tcp_server.h"
+#include "ack.h"
+#include "verify.h"
+#include "data_struct.h"
+#include "system_emio.h"
+#include "main.h"
+#include "axi_lite.h"
+#include "system_state.h"
+#include "memory_map.h"
+#include "mt25ql512.h"
+#include "operation.h"
+
+
+/*
+  ** Define
+*/
+/* Check Crc */
+#define     CHECK_CRC           (0x0)
+/* AXI LITE */
+#define     AXI_LITE            (0x0)
+/* First Frame */
+#define     FIRST_FRAME         (0x1)
+/* Crc Initial Value */
+#define     CRC_INIT_VAL        (0xFFFFFFFF)
+/* Crc Size */
+#define     CRC_VAL_SIZE        (0x4)
+/* Management Firmware Other Overhead Size */
+#define     MB_FR_OVER_SIZE     (0x4)
+/* Flash Start Address */
+#define     FLASH_START_ADDR    (0x000000)
+/* Retransmission Firmware Ack */
+#define     RET_FIM_ACK         (0x01)
+/* Update Successed Ack */
+#define     UPT_SUCS_ACK        (0x00)
+
+
+/*
+  ** Static Funtion
+*/
+static u8 Beep_Control(void * Data);
+static u8 Time_Synchronous(void * Data);
+static u8 DPS_Config(void * Data);
+static u8 Pattern_Handle(void * Data);
+static u8 Control_Command(void * Data);
+static u8 Timer_Restart(void * Data);
+static u8 Pin_Config(void * Data);
+static u8 Sample_Data(void * Data);
+static u8 DPS_Channel_Status(void * Data);
+static u8 Realtime_Status(void * Data);
+static u8 Pattern_Error_Information(void * Data);
+static u8 Set_Pattern_Status(void * Data);
+static u8 Driver_Board_Version(void * Data);
+static u8 Pattern_Status_Debug(void * Data);
+static u8 Pattern_Status(void * Data);
+static u8 Pin_Config_Debug(void * Data);
+static u8 Pin_Mask(void * Data);
+static u8 Max9972_Debug(void * Data);
+static u8 Read_PS_DDR(void * Data);
+static u8 Management_Board_Firmware(void * Data);
+static u8 Driver_Board_Firmware(void * Data);
+static u8 DDR_Test(void * Data);
+static u8 DDR_Test_Status(void * Data);
+
+
+/*
+  ** Static Global Variable
+*/
+static u8 Dps_Cfg_Flag = 0x0;
+static u8 FPGA_Cfg1_Flag = 0x00;
+static u8 FPGA_Cfg2_Flag = 0x00;
+
+
+/*
+  ** Function Name        : Set_Dps_Cfg_Flag
+  ** Function Description : Set Dps Config Flag
+  ** Function Parameter   : Void
+  ** Function Return      : SET_SUCCESS         : Always
+  ** Notes				  : None
+*/
+u8 Set_Dps_Cfg_Flag(void)
+{
+	Dps_Cfg_Flag = 0x01;
+	return SET_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Get_Dps_Cfg_Flag
+  ** Function Description : Get Dps Config Flag
+  ** Function Parameter   : Void
+  ** Function Return      : u8			 		: Dps_Cfg_Flag Value
+  ** Notes				  : None
+*/
+u8 Get_Dps_Cfg_Flag(void)
+{
+	return Dps_Cfg_Flag;
+}
+
+
+/*
+  ** Function Name        : Clear_Dps_Cfg_Flag
+  ** Function Description : Clear Dps Config Flag
+  ** Function Parameter   : Void
+  ** Function Return      : CLEAR_SUCCESS       : Always
+  ** Notes				  : None
+*/
+u8 Clear_Dps_Cfg_Flag(void)
+{
+	Dps_Cfg_Flag = 0x00;
+	return CLEAR_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Set_FPGA_Cfg1_Flag
+  ** Function Description : Set FPGA Config1 Flag
+  ** Function Parameter   : Void
+  ** Function Return      : SET_SUCCESS         : Always
+  ** Notes				  : None
+*/
+u8 Set_FPGA_Cfg1_Flag(void)
+{
+	FPGA_Cfg1_Flag = 0x01;
+	return SET_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Get_FPGA_Cfg1_Flag
+  ** Function Description : Get FPGA Config1 Flag
+  ** Function Parameter   : Void
+  ** Function Return      : u8			 		: FPGA_Cfg1_Flag Value
+  ** Notes				  : None
+*/
+u8 Get_FPGA_Cfg1_Flag(void)
+{
+	return FPGA_Cfg1_Flag;
+}
+
+
+/*
+  ** Function Name        : Clear_FPGA_Cfg1_Flag
+  ** Function Description : Clear FPGA Config1 Flag
+  ** Function Parameter   : Void
+  ** Function Return      : CLEAR_SUCCESS       : Always
+  ** Notes				  : None
+*/
+u8 Clear_FPGA_Cfg1_Flag(void)
+{
+	FPGA_Cfg1_Flag = 0x00;
+	return CLEAR_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Set_FPGA_Cfg2_Flag
+  ** Function Description : Set FPGA Config2 Flag
+  ** Function Parameter   : Void
+  ** Function Return      : SET_SUCCESS         : Always
+  ** Notes				  : None
+*/
+u8 Set_FPGA_Cfg2_Flag(void)
+{
+	FPGA_Cfg2_Flag = 0x01;
+	return SET_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Get_FPGA_Cfg2_Flag
+  ** Function Description : Get FPGA Config2 Flag
+  ** Function Parameter   : Void
+  ** Function Return      : u8			 		: FPGA_Cfg2_Flag Value
+  ** Notes				  : None
+*/
+u8 Get_FPGA_Cfg2_Flag(void)
+{
+	return FPGA_Cfg2_Flag;
+}
+
+
+/*
+  ** Function Name        : Clear_FPGA_Cfg2_Flag
+  ** Function Description : Clear FPGA Config2 Flag
+  ** Function Parameter   : Void
+  ** Function Return      : CLEAR_SUCCESS       : Always
+  ** Notes				  : None
+*/
+u8 Clear_FPGA_Cfg2_Flag(void)
+{
+	FPGA_Cfg2_Flag = 0x00;
+	return CLEAR_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Data_Operation
+  ** Function Description : Operation Tcp Server Receive Data
+  ** Function Parameter   : Data                : Point Receive Data Pointer
+  ** Function Return      : OPER_FAILED 		: Operation Failed
+  **                        OPER_SUCCESS	    : Operation Success
+  ** Notes				  : None
+*/
+u8 Data_Operation(void * Data)
+{
+	/* Check Parameter (Data) */
+	if (NULL == Data) {
+		debug("The Data Point Is NULL In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	static Frame * temp_data = NULL;
+	static u8 status = 0;
+	temp_data = (Frame *)Data;
+	switch (temp_data->com) {
+	    /* Beep Control Order */
+		case R_BEEP_CONTROL: {
+			status = Beep_Control(Data);
+			if (OPER_SUCCESS != status) {
+				debug("Beep Control Order Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		}
+		break;
+		/* Time Synchronous Order */
+		case R_TIME_SYNC: {
+			status = Time_Synchronous(Data);
+			if (OPER_SUCCESS != status) {
+				debug("Time Synchronous Order Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		}
+		break;
+		/* DPS Channel Config Order */
+		case R_DPS_CONFIG: {
+			status = DPS_Config(Data);
+			if (OPER_SUCCESS != status) {
+				debug("DPS Channel Config Order Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		}
+		break;
+		/* Pattern File Order */
+		case R_PATTERN: {
+			status = Pattern_Handle(Data);
+			if (OPER_SUCCESS != status) {
+				debug("Pattern File Order Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		}
+		break;
+		/* Control Command Order */
+		case R_CONTROL_COM: {
+			status = Control_Command(Data);
+			if (OPER_SUCCESS != status) {
+				debug("Control Order Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		}
+		break;
+		/* Time Restart Order */
+		case R_TIME_RESTART: {
+			status = Timer_Restart(Data);
+			if (OPER_SUCCESS != status) {
+				debug("Time Restart Order Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		}
+		break;
+		/* Pin Config Order */
+		case R_PIN_CONFIG: {
+			status = Pin_Config(Data);
+			if (OPER_SUCCESS != status) {
+				debug("Pin Config Order Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		}
+		break;
+		/* Not Used Order */
+		case R_ALARM: {
+
+		}
+		break;
+		/* Sample Data Order */
+		case S_SAMPLE_DATA: {
+			status = Sample_Data(Data);
+			if (OPER_SUCCESS != status) {
+				debug("Sample Data Order Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		}
+		break;
+		/* Not Used Order */
+		case S_MAX9979_DATA: {
+
+		}
+		break;
+		/* DPS Channel Status */
+		case R_DPS_CH_STATUS: {
+			status = DPS_Channel_Status(Data);
+			if (OPER_SUCCESS != status) {
+				debug("Pin Config Order Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		}
+		break;
+		/* Not Used Order */
+		case R_TEMP_SAMPLE_DATA: {
+
+		}
+		break;
+	    /* Realtime Status */
+		case S_REALTIME_STATUS: {
+			status = Realtime_Status(Data);
+			if (OPER_SUCCESS != status) {
+				debug("Realtime Status Order Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		}
+		break;
+		/* Pattern Error Information */
+		case S_PATTERN_ERR_INFO: {
+			status = Pattern_Error_Information(Data);
+			if (OPER_SUCCESS != status) {
+				debug("Pattern Error Information Order Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		}
+		break;
+		/* Set Pattern Status */
+		case R_SET_PATTERN_STS: {
+			status = Set_Pattern_Status(Data);
+			if (OPER_SUCCESS != status) {
+				debug("Pattern Error Information Order Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		}
+		break;
+		/* Driver Board Version */
+		case S_DB_VERSION: {
+			status = Driver_Board_Version(Data);
+			if (OPER_SUCCESS != status) {
+				debug("Pattern Error Information Order Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		}
+		break;
+		/* Not Used Order */
+		case S_DB_PATTERN_STS: {
+
+		}
+		break;
+		/* Pattern Status (Debug) */
+		case R_PATTERN_DSTS: {
+			status = Pattern_Status_Debug(Data);
+			if (OPER_SUCCESS != status) {
+				debug("Pattern Status Debug Order Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		}
+		break;
+		/* Pattern Status */
+		case S_PATTERN_STS: {
+			status = Pattern_Status(Data);
+			if (OPER_SUCCESS != status) {
+					debug("Pattern Status Order Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		}
+		break;
+		/* Pin Config (Debug) */
+		case R_PIN_DCONFIG: {
+			status = Pin_Config_Debug(Data);
+			if (OPER_SUCCESS != status) {
+					debug("Pin Config Debug Order Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		}
+		break;
+		case R_PIN_MASK: {
+			status = Pin_Mask(Data);
+			if (OPER_SUCCESS != status) {
+					debug("Pin Mask Order Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		}
+		break;
+		/* Max9972 Debug */
+		case R_9972_DEBUG: {
+			status = Max9972_Debug(Data);
+			if (OPER_SUCCESS != status) {
+					debug("Pin Config Debug Order Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		}
+		break;
+		/* Read ZYNQ (Management Board) PS DDR Data */
+		case R_PS_DDR: {
+			status = Read_PS_DDR(Data);
+			if (OPER_SUCCESS != status) {
+					debug("Management Board Firmware Order Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		}
+		break;
+		/* Management Board Firmware */
+		case R_MB_FIRMWARE: {
+			status = Management_Board_Firmware(Data);
+			if (OPER_SUCCESS != status) {
+					debug("Management Board Firmware Order Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		}
+		break;
+		/* Driver Board Firmware */
+		case R_DB_FIRMWARE: {
+			status = Driver_Board_Firmware(Data);
+			if (OPER_SUCCESS != status) {
+					debug("Driver Board Firmware Order Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		}
+		break;
+		/* Not Used Order */
+		case S_VERSION: {
+
+		}
+		break;
+		/* DDR */
+		case S_DDR_TEST: {
+			status = DDR_Test(Data);
+			if (OPER_SUCCESS != status) {
+					debug("DDR Test Order Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		}
+		break;
+		case S_DDR_TEST_STS: {
+			status = DDR_Test_Status(Data);
+			if (OPER_SUCCESS != status) {
+					debug("DDR Test Status Order Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		}
+		break;
+		default : {
+			status = Tcp_Nack();
+			if (SEND_SUCCESS != status) {
+				debug("Tcp Server Send Nack Failed In %s Files,%d Line\n",__FILE__,__LINE__);
+				status = OPER_FAILED;
+			}
+			else {
+				status = OPER_SUCCESS;
+			}
+		}
+		break;
+	}
+
+	return status;
+}
+
+
+/*
+  ** Function Name        : Beep_Control
+  ** Function Description : Beep Control Operation
+  ** Function Parameter   : Data                : Point Receive Data Pointer
+  ** Function Return      : OPER_FAILED 		: Operation Failed
+  **                        OPER_SUCCESS	    : Operation Success
+  ** Notes				  : Static
+*/
+static u8 Beep_Control(void * Data)
+{
+	/* Check Parameter (Data) */
+	if (NULL == Data) {
+		return OPER_FAILED;
+	}
+
+	/* Frame End */
+	Frame * temp = (Frame *)Data;
+	Beep_Control_t * point = (Beep_Control_t *)temp->data;
+	XGpioPs * emio = NULL;
+	emio = Get_Emio_Point();
+
+	/* Beep Disable */
+	if ((BEEP_DISABLE == point->enable)) {
+		/* Nothing To Do */
+	}
+	/* Beep Enable */
+	else if (BEEP_ENABLE == point->enable) {
+		/* Beep Off */
+		if (BEEP_OFF == point->state) {
+			Set_System_Beep(emio,OFF);
+		}
+		/* Beep On */
+		else if (BEEP_0N == point->state) {
+			Set_System_Beep(emio,ON);
+		}
+		/* Others . Error */
+		else {
+			debug("Beep Control Order Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			/* Tcp Server Send Nack */
+			if (SEND_SUCCESS != Tcp_Nack()) {
+				debug("Send Nack Failed In Beep Control In %s Files,%d Line\n",__FILE__,__LINE__);
+				return OPER_FAILED;
+			}
+			return OPER_FAILED;
+		}
+	}
+	/* Others . Error */
+	else {
+		debug("Beep Control Order Error In %s Files,%d Line\n",__FILE__,__LINE__);
+		/* Tcp Server Send Nack */
+		if (SEND_SUCCESS != Tcp_Nack()) {
+			debug("Send Nack Failed In Beep Control In %s Files,%d Line\n",__FILE__,__LINE__);
+			return OPER_FAILED;
+		}
+		return OPER_FAILED;
+	}
+
+	/* Tcp Server Send Ack */
+	if (SEND_SUCCESS != Tcp_Ack()) {
+		debug("Send Ack Failed In Beep Control In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	return OPER_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Time_Synchronous
+  ** Function Description : ZYNQ Synchronous Time
+  ** Function Parameter   : Data                : Point Receive Data Pointer
+  ** Function Return      : OPER_FAILED 		: Operation Failed
+  **                        OPER_SUCCESS	    : Operation Success
+  ** Notes				  : Static
+*/
+static u8 Time_Synchronous(void * Data)
+{
+	/* Check Parameter (Data) */
+	if (NULL == Data) {
+		return OPER_FAILED;
+	}
+
+	/* Synchronous Time Process */
+	Frame * temp = (Frame *)Data;
+	Time_Sync_t * point = (Time_Sync_t *)temp->data;
+
+
+	/* Tcp Server Send Ack */
+	if (SEND_SUCCESS != Tcp_Ack()) {
+		debug("Send Ack Failed In Time Synchronous In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	return OPER_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : DPS_Config
+  ** Function Description : DPS Channel Config Operation
+  ** Function Parameter   : Data                : Point Receive Data Pointer
+  ** Function Return      : OPER_FAILED 		: Operation Failed
+  **                        OPER_SUCCESS	    : Operation Success
+  ** Notes				  : Static
+*/
+static u8 DPS_Config(void * Data)
+{
+	/* Check Parameter (Data) */
+	if (NULL == Data) {
+		return OPER_FAILED;
+	}
+
+	/* DPS Channel Config */
+	Frame * temp = (Frame *)Data;
+	/* Copy DPS Config Data */
+	u8 * point = (u8 *)temp->data;
+	u8 * desaddr = (void *)DPS_CFG_DATA_ADDR;
+
+	u32 count = 0x00;
+	u32 size = sizeof(Dps_Config_t);
+
+	for (count = 0x00; count < size; count++) {
+		desaddr[count] = point[count];
+	}
+	/* Set DPS Config Flag */
+	Set_Dps_Cfg_Flag();
+
+	/* Tcp Server Send Ack */
+	if (SEND_SUCCESS != Tcp_Ack()) {
+		debug("Send Ack Failed In DPS Config In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	return OPER_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Pattern_Handle
+  ** Function Description : Pattern File Operation
+  ** Function Parameter   : Data                : Point Receive Data Pointer
+  ** Function Return      : OPER_FAILED 		: Operation Failed
+  **                        OPER_SUCCESS	    : Operation Success
+  ** Notes				  : Static
+*/
+static u8 Pattern_Handle(void * Data)
+{
+	/* Check Parameter (Data) */
+	if (NULL == Data) {
+		return OPER_FAILED;
+	}
+
+	/* Pattern File */
+	Frame * temp = (Frame *)Data;
+	u32 length;
+	u32 check_sum = 0x00;
+	u32 sum_temp = 0x00;
+	/* Get Pattern Size */
+	length =  temp->length - LENGTH_SIZE - HEAD_SIZE - COM_SIZE - 8;
+
+/* Check Sum */
+	check_sum = *(u32 *)&(temp->data[temp->length - LENGTH_SIZE - HEAD_SIZE -\
+										  COM_SIZE]);
+
+	Check_Sum(Data, temp->length, &sum_temp);
+
+	if (check_sum != sum_temp) {
+		if (SEND_SUCCESS != Tcp_Nack()) {
+			debug("Send Nack Failed In DPS Config In %s Files,%d Line\n",__FILE__,__LINE__);
+			return OPER_FAILED;
+		}
+	}
+	else {
+		if (SEND_SUCCESS != Tcp_Ack()) {
+			debug("Send Ack Failed In DPS Config In %s Files,%d Line\n",__FILE__,__LINE__);
+			return OPER_FAILED;
+		}
+	}
+
+	return OPER_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Control_Command
+  ** Function Description : Control Command Operation
+  ** Function Parameter   : Data                : Point Receive Data Pointer
+  ** Function Return      : OPER_FAILED 		: Operation
+  ** Failed
+  **                        OPER_SUCCESS	    : Operation Success
+  ** Notes				  : Static
+*/
+static u8 Control_Command(void * Data)
+{
+	/* Check Parameter (Data) */
+	if (NULL == Data) {
+		return OPER_FAILED;
+	}
+
+	/* Control Command */
+	Sample_Data_t * samp_data = (Sample_Data_t *)SAMPLE_DATA_ADD;
+	/* Get Control Command */
+	Frame * temp = (Frame *)Data;
+	System_State_t * point = (System_State_t *)temp->data;
+	u8 * point1 = (u8 *)temp->data;
+	u8 * desdaddr = (void *)AGING_CTL_ADDR;
+
+	u32 count = 0x00;
+	u32 size = sizeof(System_State_t);
+
+	for (count = 0x00; count < size; count++) {
+		desdaddr[count] = point1[count];
+	}
+
+	samp_data->aging_state = point->aging_state;
+	/* Set Systrm State */
+	switch (point->aging_state) {
+		case AGING_DO:
+			samp_data->aging_state = point->aging_state;
+			if (SET_SUCCESS != System_State_Set_Running()) {
+				debug("Set System Running State Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		break;
+		case AGING_PAUSE:
+			samp_data->aging_state = point->aging_state;
+			if (SET_SUCCESS != System_State_Set_Stop()) {
+				debug("Set System Stop State Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		break;
+		case AGING_CTE:
+			samp_data->aging_state = AGING_DO;
+			if (SET_SUCCESS != System_State_Set_Running()) {
+				debug("Set System Running State Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		break;
+		case AGING_CPL:
+			if (SET_SUCCESS != System_State_Set_Stop()) {
+				debug("Set System Stop State Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		break;
+		case AGING_STOP:
+			samp_data->aging_state = point->aging_state;
+			if (SET_SUCCESS != System_State_Set_Stop()) {
+				debug("Set System Stop State Error In %s Files,%d Line\n",__FILE__,__LINE__);
+			}
+		break;
+		default:
+
+		break;
+	}
+
+	/* Clear System Error Information */
+
+	/* Set Aging Timer */
+
+
+	/* Clear  Pattren Record */
+	Pattern_Running_Sts_t * pat_point = (Pattern_Running_Sts_t *)PAT_R_STS_ADDR;
+	pat_point->pat_r_sts = 0xFF;
+	pat_point->pat_r_c_pos = 0x00;
+
+#if 0
+	Sample_Data_t * samp_data = (Sample_Data_t *)SAMPLE_DATA_ADD;
+
+	/* Control */
+	samp_data->aging_state = point->aging_state;
+	if (0x03 == samp_data->aging_state) {
+		samp_data->aging_state = 0x01;
+	}
+#endif
+
+	/* Tcp Server Send Ack */
+	if (SEND_SUCCESS != Tcp_Ack()) {
+		debug("Send Ack Failed In Control Command In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+	/* Tcp Server Send Data */
+	/* Control State */
+	u8 con_sts = 0x00;
+	if (SEND_SUCCESS != Tcp_Server_Send((const char *)&con_sts,sizeof(con_sts))) {
+		debug("Send Control Command Failed In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	return OPER_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Timer_Restart
+  ** Function Description : Patern Status Operation
+  ** Function Parameter   : Void
+  ** Function Return      : OPER_FAILED 		: Operation Failed
+  **                        OPER_SUCCESS	    : Operation Success
+  ** Notes				  : Static
+*/
+static u8 Timer_Restart(void * Data)
+{
+	/* Check Parameter (Data) */
+	if (NULL == Data) {
+		return OPER_FAILED;
+	}
+
+	/* Timer Restart */
+	Frame * temp = (Frame *)Data;
+	Retime_Enable_t * point = (Retime_Enable_t *)temp->data;
+	Sample_Data_t * samp_data = (Sample_Data_t *)SAMPLE_DATA_ADD;
+	/* Clear Aging Timer */
+	if	(point->clr_timer) {
+		samp_data->aging_time = 0x00;
+	}
+	/* Nothing To Do */
+	else {
+
+	}
+
+	/* Tcp Server Send Ack */
+	if (SEND_SUCCESS != Tcp_Ack()) {
+		debug("Send Ack Failed In Timer Restart In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	return OPER_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Pin_Config
+  ** Function Description : Pin Config Operation
+  ** Function Parameter   : Data                : Point Receive Data Pointer
+  ** Function Return      : OPER_FAILED 		: Operation Failed
+  **                        OPER_SUCCESS	    : Operation Success
+  ** Notes				  : Static
+*/
+static u8 Pin_Config(void * Data)
+{
+	/* Check Parameter (Data) */
+	if (NULL == Data) {
+		return OPER_FAILED;
+	}
+
+	/* Pin Config */
+	Frame * temp = (Frame *)Data;
+	/* Copy FPGA Config1 Data */
+	u8 * point = (u8 *)temp->data;
+	u8 * desdaddr = (void *)FPGA_CFG1_DATA_ADDR;
+
+	u32 count = 0x00;
+	u32 size = sizeof(Pin_Config_t);
+
+	for (count = 0x00; count < size; count++) {
+		desdaddr[count] = point[count];
+	}
+	/* Set FPGA Config1 Flag */
+	Set_FPGA_Cfg1_Flag();
+
+	/* Tcp Server Send Ack */
+	if (SEND_SUCCESS != Tcp_Ack()) {
+		debug("Send Ack Failed In Pin Config In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	return OPER_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Sample_Data
+  ** Function Description : Sample Data Operation
+  ** Function Parameter   : Data                : Point Receive Data Pointer
+  ** Function Return      : OPER_FAILED 		: Operation Failed
+  **                        OPER_SUCCESS	    : Operation Success
+  ** Notes				  : Static
+*/
+static u8 Sample_Data(void * Data)
+{
+	/* Check Parameter (Data) */
+	if (NULL == Data) {
+		return OPER_FAILED;
+	}
+
+	/* Pin Config */
+	/* Tcp Server Send Sample Data */
+	Sample_Data_t * samp_data = (Sample_Data_t *)SAMPLE_DATA_ADD;
+
+	/* Tcp Server Send Ack */
+	if (SEND_SUCCESS != Tcp_Ack()) {
+		debug("Send Ack Failed In Realtime Status In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	/* Tcp Server Send Data*/
+	if (SEND_SUCCESS != Tcp_Server_Send((const char *)samp_data,sizeof(Sample_Data_t))) {
+		debug("Send Realtime Status Failed In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	return OPER_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : DPS_Channel_Status
+  ** Function Description : Control DPS Channel Status Operation
+  ** Function Parameter   : Data                : Point Receive Data Pointer
+  ** Function Return      : OPER_FAILED 		: Operation Failed
+  **                        OPER_SUCCESS	    : Operation Success
+  ** Notes				  : Static
+*/
+static u8 DPS_Channel_Status(void * Data)
+{
+	/* Check Parameter (Data) */
+	if (NULL == Data) {
+		return OPER_FAILED;
+	}
+
+	/* DPS Channel Status */
+	Frame * temp = (Frame *)Data;
+	DPS_Channel_Sts_t * point = (DPS_Channel_Sts_t *)temp->data;
+
+
+	/* Tcp Server Send Ack */
+	if (SEND_SUCCESS != Tcp_Ack()) {
+		debug("Send Ack Failed In DPS Channel Status In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	return OPER_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Realtime_Status
+  ** Function Description : System Realtime Status Operation
+  ** Function Parameter   : Data                : Point Receive Data Pointer
+  ** Function Return      : OPER_FAILED 		: Operation Failed
+  **                        OPER_SUCCESS	    : Operation Success
+  ** Notes				  : Static
+*/
+static u8 Realtime_Status(void * Data)
+{
+	/* Check Parameter (Data) */
+	if (NULL == Data) {
+		return OPER_FAILED;
+	}
+
+	/* Tcp Server Send Pattern Status */
+	Pat_Err_Info_t * point = (Pat_Err_Info_t *)PAT_ERR_INFO_ADDR;
+
+	/* Tcp Server Send Ack */
+	if (SEND_SUCCESS != Tcp_Ack()) {
+		debug("Send Ack Failed In Realtime Status In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	/* Tcp Server Send Data */
+	if (SEND_SUCCESS != Tcp_Server_Send((const char *)point,sizeof(Pat_Err_Info_t))) {
+		debug("Send Realtime Status Failed In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	return OPER_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Pattern_Error_Information
+  ** Function Description : Pattern Error Information Operation
+  ** Function Parameter   : Data                : Point Receive Data Pointer
+  ** Function Return      : OPER_FAILED 		: Operation Failed
+  **                        OPER_SUCCESS	    : Operation Success
+  ** Notes				  : Static
+*/
+static u8 Pattern_Error_Information(void * Data)
+{
+	/* Check Parameter (Data) */
+	if (NULL == Data) {
+		return OPER_FAILED;
+	}
+
+	Pat_Compare_Info_t * point = (Pat_Compare_Info_t *)PAT_C_INFO_ADDR;
+
+	/* Tcp Server Send Ack */
+	if (SEND_SUCCESS != Tcp_Ack()) {
+		debug("Send Ack Failed In Pattern Error Information In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	/* Tcp Server Send Data */
+	if (SEND_SUCCESS != Tcp_Server_Send((const char *)point,sizeof(Pat_Compare_Info_t))) {
+		debug("Send Realtime Status Failed In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	/* Tcp Server Send Pattern Status */
+	return OPER_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Set_Pattern_Status
+  ** Function Description : Set Pattern Status Operation
+  ** Function Parameter   : Data                : Point Receive Data Pointer
+  ** Function Return      : OPER_FAILED 		: Operation Failed
+  **                        OPER_SUCCESS	    : Operation Success
+  ** Notes				  : Static
+*/
+static u8 Set_Pattern_Status(void * Data)
+{
+	/* Check Parameter (Data) */
+	if (NULL == Data) {
+		return OPER_FAILED;
+	}
+
+	/* Set_Pattern_Status */
+	u8 status = 0x00;
+
+	/* Tcp Server Send Ack */
+	if (SEND_SUCCESS != Tcp_Ack()) {
+		debug("Send Ack Failed In Set Pattern Status In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	if (SEND_SUCCESS != Tcp_Server_Send((const char *)&status,1)) {
+		debug("Send Set Pattern Status FailedI In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	return OPER_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Deiver_Board_Version
+  ** Function Description : Driver Operation
+  ** Function Parameter   : Data                : Point Receive Data Pointer
+  ** Function Return      : OPER_FAILED 		: Operation Failed
+  **                        OPER_SUCCESS	    : Operation Success
+  ** Notes				  : Static
+*/
+static u8 Driver_Board_Version(void * Data)
+{
+	/* Check Parameter (Data) */
+	if (NULL == Data) {
+		return OPER_FAILED;
+	}
+
+	/* Tcp Server Send Driver Board Version */
+
+
+	/* Tcp Server Send Ack */
+	if (SEND_SUCCESS != Tcp_Ack()) {
+		debug("Send Ack Failed In Driver Board Version In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	return OPER_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Pattern_Status_Debug
+  ** Function Description : Pattern Status Debug Operation
+  ** Function Parameter   : Data                : Point Receive Data Pointer
+  ** Function Return      : OPER_FAILED 		: Operation Failed
+  **                        OPER_SUCCESS	    : Operation Success
+  ** Notes				  : Static
+*/
+static u8 Pattern_Status_Debug(void * Data)
+{
+	/* Check Parameter (Data) */
+	if (NULL == Data) {
+		return OPER_FAILED;
+	}
+
+	/* Set Pattern Status Debug */
+
+
+	/* Tcp Server Send Ack */
+	if(SEND_SUCCESS != Tcp_Ack()) {
+		debug("Send Ack Failed In Pattern Status Debug In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	return OPER_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Pattern_Status
+  ** Function Description : Pattern Status Operation
+  ** Function Parameter   : Data                : Point Receive Data Pointer
+  ** Function Return      : OPER_FAILED 		: Operation Failed
+  **                        OPER_SUCCESS	    : Operation Success
+  ** Notes				  : Static
+*/
+static u8 Pattern_Status(void * Data)
+{
+	/* Check Parameter (Data) */
+	if (NULL == Data) {
+		return OPER_FAILED;
+	}
+
+	/* Tcp Server Send Pattern Status */
+	Pattern_Running_Sts_t * point = (Pattern_Running_Sts_t *)PAT_R_STS_ADDR;
+
+	/* Tcp Server Send Ack */
+	if(SEND_SUCCESS != Tcp_Ack()) {
+		debug("Send Ack Failed In Pattern Status In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	if (SEND_SUCCESS != Tcp_Server_Send((const char *)point,\
+			sizeof(Pattern_Running_Sts_t))) {
+		debug("Send Pattern Status Failed In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	return OPER_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Pin_Config_Debug
+  ** Function Description : Pin Config Debug Operation
+  ** Function Parameter   : Data                : Point Receive Data Pointer
+  ** Function Return      : OPER_FAILED 		: Operation Failed
+  **                        OPER_SUCCESS	    : Operation Success
+  ** Notes				  : Static
+*/
+static u8 Pin_Config_Debug(void * Data)
+{
+	/* Check Parameter (Data) */
+	if (NULL == Data) {
+		return OPER_FAILED;
+	}
+
+	/* Pin Config Debug */
+	Frame * temp = (Frame *)Data;
+	/* Copy FPGA Config2 Data */
+	u8 * point = (void *)temp->data;
+	u8 * desdaddr = (void *)FPGA_CFG2_DATA_ADDR;
+
+	u32 count = 0x00;
+	u32 size = 0x00;
+	size = sizeof(Set_Pin_Parameter_t);
+
+	for (count = 0x00; count < size; count++) {
+		desdaddr[count] = point[count];
+	}
+	/* Set FPGA Config2 Flag */
+	Set_FPGA_Cfg2_Flag();
+
+	/* Tcp Server Send Ack */
+	if (SEND_SUCCESS != Tcp_Ack()) {
+		debug("Send Ack Failed In Pin Config Debug In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	return OPER_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Pin_Mask
+  ** Function Description : Pin Mask Operation
+  ** Function Parameter   : Data                : Point Receive Data Pointer
+  ** Function Return      : OPER_FAILED 		: Operation Failed
+  **                        OPER_SUCCESS	    : Operation Success
+  ** Notes				  : Static
+*/
+static u8 Pin_Mask(void * Data)
+{
+	/* Check Parameter (Data) */
+	if (NULL == Data) {
+		return OPER_FAILED;
+	}
+
+	/* Pin Mask */
+	Frame * temp = (Frame *)Data;
+	/* Copy FPGA Config2 Data */
+	Recv_Pin_Mask_Info_t * point = (Recv_Pin_Mask_Info_t *)temp->data;
+	Pin_To_Info_t * point_temp = (Pin_To_Info_t *)PIN_MASK_INFO;
+
+	u8 count;
+	for (count = 0; count < PIN_NUMBER; count++) {
+		switch (count) {
+			case 0 ... 31 :
+				point_temp->pin_mask[0] = 1;
+			break;
+			case 32 ... 63 :
+				point_temp->pin_mask[0] = 1;
+			break;
+			case 64 ... 95 :
+				point_temp->pin_mask[0] = 1;
+			break;
+			case 96 ... 127 :
+				point_temp->pin_mask[0] = 1;
+			break;
+			case 128 ... 159 :
+				point_temp->pin_mask[0] = 1;
+			break;
+			case 160 ... 181 :
+				point_temp->pin_mask[0] = 1;
+			break;
+			case 192 ... 213 :
+				point_temp->pin_mask[0] = 1;
+			break;
+			case 214 ... 255 :
+				point_temp->pin_mask[0] = 1;
+			break;
+
+		}
+		if (point->pin_mask[count]) {
+
+		}
+	}
+
+	/* Tcp Server Send Ack */
+	if (SEND_SUCCESS != Tcp_Ack()) {
+		debug("Send Ack Failed In Pin Mask In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	/* Debug */
+	debug("recv:A259 Order\n");
+	return OPER_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Max9972_Debug
+  ** Function Description : Max9972 Debug Operation
+  ** Function Parameter   : Data                : Point Receive Data Pointer
+  ** Function Return      : OPER_FAILED 		: Operation Failed
+  **                        OPER_SUCCESS	    : Operation Success
+  ** Notes				  : Static
+*/
+static u8 Max9972_Debug(void * Data)
+{
+	/* Check Parameter (Data) */
+	if (NULL == Data) {
+		return OPER_FAILED;
+	}
+
+	/* Max9972 Debug */
+
+
+	/* Tcp Server Send Ack */
+	if (SEND_SUCCESS != Tcp_Ack()) {
+		debug("Send Ack Failed In Max9972 Debug In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	return OPER_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Read_PS_DDR
+  ** Function Description : PC Read ZYNQ(Management Board) PS DDR Data
+  ** Function Parameter   : Data                : Point Receive Data Pointer
+  ** Function Return      : OPER_FAILED 		: Operation Failed
+  **                        OPER_SUCCESS	    : Operation Success
+  ** Notes				  : Static
+*/
+static u8 Read_PS_DDR(void * Data)
+{
+	/* Check Parameter (Data) */
+	if (NULL == Data) {
+		return OPER_FAILED;
+	}
+
+	/* Read ZYNQ PS DDR */
+	Frame * temp = (Frame *)Data;
+	Read_DDR_t * point = (Read_DDR_t *)temp->data;
+
+	/* Temp Data */
+	u8 data[1024] = {0x00};
+	u8 * temp_p = (u8 *)point;
+	u8 * temp_p1 = (u8 *)point->ddr_addr;
+	u8 length = sizeof(Read_DDR_t);
+	u32 leng = point->ddr_length;
+	u32 count = 0x00;
+
+	/* Ack Data */
+	memcpy((void *)data , (void *)Read_Ack(),ACK_SIZE);
+    /* Command Data */
+	for (count = 0; count < length; count++) {
+		data[count + ACK_SIZE] = temp_p[count];
+	}
+	/* DDR Data */
+	for (count = 0; count < leng; count++) {
+		data[count + length + ACK_SIZE] = temp_p1[count];
+	}
+
+	/* Tcp Server Send Ack And Data*/
+	if (SEND_SUCCESS != Tcp_Server_Send((const char *)data,	\
+			point->ddr_length + ACK_SIZE + length)) {
+		debug("Send Realtime Status Failed In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	return OPER_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Management_Board_Firmware
+  ** Function Description : Management Board Firmware Operation
+  ** Function Parameter   : Data                : Point Receive Data Pointer
+  ** Function Return      : OPER_FAILED 		: Operation Failed
+  **                        OPER_SUCCESS	    : Operation Success
+  ** Notes				  : Static
+*/
+static u8 Management_Board_Firmware(void * Data)
+{
+	/* Check Parameter (Data) */
+	if (NULL == Data) {
+		return OPER_FAILED;
+	}
+
+	/* Management Board Firmware */
+	Frame * temp = (Frame *)Data;
+	MB_Firmware_t * point = (MB_Firmware_t *)temp->data;
+	/* Temp Data */
+	static u32 temp_point = 0x00;
+	/* Current Frame */
+	static u16 c_frame = 0x00;
+	/* Firmware Size */
+	static u32 fir_size = 0x00;
+	/* Cache Management Board Firmware */
+	/* First Frame Firmware */
+	if (FIRST_FRAME == point->mb_crt_fir_frame) {
+		/* Get Frame Size */
+		u32 frame_size = temp->length - LENGTH_SIZE - HEAD_SIZE - COM_SIZE - MB_FR_OVER_SIZE;
+		/* Get Next Frame Count */
+		c_frame = point->mb_crt_fir_frame + 1;
+		/* Clear Firmware Size */
+		fir_size = 0x00;
+		/* Erase Flash */
+		if (ERASE_SUCCESS != Erase_Flash(FLASH_START_ADDR ,point->mb_total_fir_frame * frame_size, \
+				Get_Write_Buffer())) {
+			debug("Flash Erase Failed In %s Files,%d Line\n",__FILE__,__LINE__);
+			return OPER_SUCCESS;
+		}
+		else {
+
+		}
+		/* Write Flash */
+		u32 page_cnt = Get_Page_Count(frame_size);
+		u32 page;
+		u32 page_size = Get_Page_Size();
+		for (page = 0; page < page_cnt; page++) {
+			if (WRITE_SUCCESS != Write_Flash((page * page_size) + FLASH_START_ADDR + fir_size,
+					page_size, WRITE_CMD, (u8 *)point + (page * page_size))) {
+				debug("Qspi Write Flash Failed In Management Board Firmware In %s Files,%d Line\n",\
+						__FILE__,__LINE__);
+				return OPER_FAILED;
+			}
+		}
+		/* Get Firmware Size */
+		fir_size += frame_size;
+		/* Tcp Server Send Ack */
+		if (SEND_SUCCESS != Tcp_Ack()) {
+			debug("Send Ack Failed In Driver Management Firmware In %s Files,%d Line\n",__FILE__,__LINE__);
+			return OPER_FAILED;
+		}
+	}
+	/* Last Frame Firmware */
+	else if (point->mb_crt_fir_frame == point->mb_total_fir_frame) {
+		/* Get Frame Size */
+		u32 frame_size = temp->length - LENGTH_SIZE - HEAD_SIZE - COM_SIZE - MB_FR_OVER_SIZE - \
+				CRC_VAL_SIZE;
+		/* Write Flash */
+		u32 page_cnt = Get_Page_Count(frame_size);
+		u32 page;
+		u32 page_size = Get_Page_Size();
+		for (page = 0; page < page_cnt; page++) {
+			if (WRITE_SUCCESS != Write_Flash((page * page_size) + FLASH_START_ADDR + fir_size,
+					page_size, WRITE_CMD, (u8 *)point + (page * page_size))) {
+				debug("Qspi Write Flash Failed In Management Board Firmware In %s Files,%d Line\n",\
+						__FILE__,__LINE__);
+				return OPER_FAILED;
+			}
+		}
+		/* Get Firmware Size */
+		fir_size += frame_size;
+		/* Read Flash Data */
+		temp_point = MB_FRW_INFO_ADDR;
+		Read_Flash(FLASH_START_ADDR, fir_size, QUAD_READ_CMD, Get_Write_Buffer(),\
+				(u8 *)temp_point);
+		/* Crc Check Firmware */
+		u32 crc_temp = *(u32 *)&point->mb_fir_data[frame_size];
+		u32 crc_val = CRC_INIT_VAL;
+		crc_val = Get_Crc32_Val(crc_val, (u8 *)MB_FRW_INFO_ADDR, fir_size);
+		/* Ready Ack */
+		u8 retr[ACK_SIZE + 1] = {0x00};
+		u8 * ack = Read_Ack();
+		u8 count;
+		for (count = 0; count < ACK_SIZE; count++) {
+			retr[count] = ack[count];
+		}
+		/* According To CRC32 Result Process */
+		if (crc_temp != crc_val) {
+			/* Debug Updata Failed */
+			debug("Firmware Updata Failed, Please Retry!\n");
+			/* Tcp Server Send Retransmission Ack */
+			retr[ACK_SIZE] = RET_FIM_ACK;
+			if (SEND_SUCCESS != Tcp_Server_Send(retr, ACK_SIZE + 1)) {
+				debug("Send Nack Failed In Management Board Firmware In %s Files,%d Line\n",__FILE__,__LINE__);
+				return OPER_FAILED;
+			}
+		}
+		else {
+			/* Debug Updata Failed */
+			debug("Firmware Updata Success, Please Reboot!\n");
+			/* Tcp Server Send Success Ack */
+			retr[ACK_SIZE] = UPT_SUCS_ACK;
+			if (SEND_SUCCESS != Tcp_Server_Send(retr, ACK_SIZE + 1)) {
+				debug("Send Ack Failed In Management Board Firmware In %s Files,%d Line\n",__FILE__,__LINE__);
+				return OPER_FAILED;
+			}
+		}
+	}
+	/* Middle Frame Firmware */
+	else if (c_frame == point->mb_crt_fir_frame) {
+		/* Get Frame Size */
+		u32 frame_size = temp->length - LENGTH_SIZE - HEAD_SIZE - COM_SIZE - MB_FR_OVER_SIZE;
+		/* Get Next Frame Count */
+		c_frame = point->mb_crt_fir_frame + 1;
+		/* Write Flash */
+		u32 page_cnt = Get_Page_Count(frame_size);
+		u32 page;
+		u32 page_size = Get_Page_Size();
+		for (page = 0; page < page_cnt; page++) {
+			if (WRITE_SUCCESS != Write_Flash((page * page_size) + FLASH_START_ADDR + fir_size,
+					page_size, WRITE_CMD, (u8 *)point + (page * page_size))) {
+				debug("Qspi Write Flash Failed In Management Board Firmware In %s Files,%d Line\n",\
+						__FILE__,__LINE__);
+				return OPER_FAILED;
+			}
+		}
+
+		/* Get Firmware Size */
+		fir_size += frame_size;
+
+		/* Tcp Server Send Ack */
+		if (SEND_SUCCESS != Tcp_Ack()) {
+			debug("Send Ack Failed In Management Board Firmware In %s Files,%d Line\n",__FILE__,__LINE__);
+			return OPER_FAILED;
+		}
+	}
+	else {
+
+	}
+
+	return OPER_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Driver_Board_Firmware
+  ** Function Description : Driver Board Firmware Operation
+  ** Function Parameter   : Data                : Point Receive Data Pointer
+  ** Function Return      : OPER_FAILED 		: Operation Failed
+  **                        OPER_SUCCESS	    : Operation Success
+  ** Notes				  : Static
+*/
+static u8 Driver_Board_Firmware(void * Data)
+{
+	/* Check Parameter (Data) */
+	if (NULL == Data) {
+		return OPER_FAILED;
+	}
+
+	/* Driver Board Firmware */
+	Frame * temp = (Frame *)Data;
+	DB_Firmware_t * point = (DB_Firmware_t *)temp->data;
+
+	/* Tcp Server Send Ack */
+	if (SEND_SUCCESS != Tcp_Ack()) {
+		debug("Send Ack Failed In Driver Board Firmware In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	return OPER_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : DDR_Test
+  ** Function Description : DDR Test Operation
+  ** Function Parameter   : Data                : Point Receive Data Pointer
+  ** Function Return      : OPER_FAILED 		: Operation Failed
+  **                        OPER_SUCCESS	    : Operation Success
+  ** Notes				  : Static
+*/
+static u8 DDR_Test(void * Data)
+{
+	/* Check Parameter (Data) */
+	if (NULL == Data) {
+		return OPER_FAILED;
+	}
+
+	/* DDR Test */
+
+
+	/* Tcp Server Send Ack */
+	if (SEND_SUCCESS != Tcp_Ack()) {
+		debug("Send Ack Failed In DDR Test In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	return OPER_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : DDR_Test_Status
+  ** Function Description : DDR Test Operation
+  ** Function Parameter   : Data                : Point Receive Data Pointer
+  ** Function Return      : OPER_FAILED 		: Operation Failed
+  **                        OPER_SUCCESS	    : Operation Success
+  ** Notes				  : Static
+*/
+static u8 DDR_Test_Status(void * Data)
+{
+	/* Check Parameter (Data) */
+	if (NULL == Data) {
+		return OPER_FAILED;
+	}
+
+	/* DDR Test Status */
+
+
+	/* Tcp Server Send Ack */
+	if (SEND_SUCCESS != Tcp_Ack()) {
+		debug("Send Ack Failed In DDR Test Status In %s Files,%d Line\n",__FILE__,__LINE__);
+		return OPER_FAILED;
+	}
+
+	return OPER_SUCCESS;
+}
+
+
+/*
+  ** (C) COPYRIGHT ChengDuHangke END OF FILE
+*/

@@ -1,0 +1,367 @@
+/*
+  ** @file           : system_state.c
+  ** @brief          : System State Source File
+  **
+  ** @attention
+  **
+  ** Copyright (c) 2020 ChengDuHangke.
+  ** All rights reserved.
+  **
+  ** This software is licensed by ChengDuHangke under Ultimate Liberty license
+  **
+*/
+
+
+/*
+  ** Include
+*/
+#include "FreeRTOS.h"
+#include "task.h"
+#include "return_val.h"
+#include "debug_config.h"
+#include "data_struct.h"
+#include "memory_map.h"
+#include "operation.h"
+#include "24lc256e.h"
+#include "axi_lite.h"
+#include "system_state.h"
+
+
+/*
+  ** Static Global Variable
+*/
+/* System State . Default Wait State */
+static volatile u8 sys_sts = SYS_IDLE;
+/* Dps Enable Flag */
+static u8 dps_enable = 0x00;
+
+
+/*
+  ** Function Name        : System_State_Process_Task
+  ** Function Description : System State Process Task
+  ** Function Parameter   : p 					: Task Parameter()
+  ** Function Return      : Void
+  ** Notes				  : None
+*/
+void System_State_Process_Task(void *p)
+{
+	const TickType_t x1second = pdMS_TO_TICKS(DELAY_1_SECOND);
+
+	Sample_Data_t * samp_data = (Sample_Data_t *)SAMPLE_DATA_ADD;
+	Pat_Err_Info_t * pat_err = (Pat_Err_Info_t *)PAT_ERR_INFO_ADDR;
+	Pat_Compare_Info_t * pat_c = (Pat_Compare_Info_t *)PAT_C_INFO_ADDR;
+	Pattern_Running_Sts_t * pat_r = (Pattern_Running_Sts_t *)PAT_R_STS_ADDR;
+
+	Dps_Config_t * dps_cfg = (Dps_Config_t *)DPS_CFG_DATA_ADDR;
+	System_State_t *aging_ctl = (System_State_t *)AGING_CTL_ADDR;
+
+	MB_Info_t * mb_info = (MB_Info_t *)MB_INFO_ADDR;
+	DB_Info_t * db_info1 = (DB_Info_t *)DB0_INFO_ADDR;
+	DB_Info_t * db_info2 = (DB_Info_t *)DB1_INFO_ADDR;
+	DB_Info_t * db_info3 = (DB_Info_t *)DB2_INFO_ADDR;
+	DB_Info_t * db_info4 = (DB_Info_t *)DB3_INFO_ADDR;
+	DB_Info_t * db_info5 = (DB_Info_t *)DB4_INFO_ADDR;
+	DB_Info_t * db_info6 = (DB_Info_t *)DPSB0_INFO_ADDR;
+	DB_Info_t * db_info7 = (DB_Info_t *)DPSB1_INFO_ADDR;
+
+	/* Sample Data Init */
+	memset((void *)samp_data,0,sizeof(Sample_Data_t));
+	/* Pattern Error Information */
+	memset((void *)pat_err,0,sizeof(Pat_Err_Info_t));
+	/* Pattern Compare Information */
+	memset((void *)pat_c,0,sizeof(Pat_Compare_Info_t));
+	/* Pattern Running State */
+	memset((void *)pat_r,0,sizeof(Pattern_Running_Sts_t));
+
+	/* Board Information Init */
+	memset((void *)mb_info,0,sizeof(MB_Info_t));
+	memset((void *)db_info1,0,sizeof(DB_Info_t));
+	memset((void *)db_info2,0,sizeof(DB_Info_t));
+	memset((void *)db_info3,0,sizeof(DB_Info_t));
+	memset((void *)db_info4,0,sizeof(DB_Info_t));
+	memset((void *)db_info5,0,sizeof(DB_Info_t));
+	memset((void *)db_info6,0,sizeof(DB_Info_t));
+	memset((void *)db_info7,0,sizeof(DB_Info_t));
+
+	memcpy((void *)mb_info->MB_ERP_PN,"AZB7.800.123456",15);
+	memcpy((void *)db_info1->DB_ERP_PN,"AZB7.801.123456",15);
+	memcpy((void *)db_info2->DB_ERP_PN,"AZB7.801.123456",15);
+	memcpy((void *)db_info3->DB_ERP_PN,"AZB7.801.123456",15);
+	memcpy((void *)db_info4->DB_ERP_PN,"AZB7.802.123456",15);
+	memcpy((void *)db_info5->DB_ERP_PN,"AZB7.802.123456",15);
+	memcpy((void *)db_info6->DB_ERP_PN,"AZB7.803.123456",15);
+	memcpy((void *)db_info7->DB_ERP_PN,"AZB7.803.123456",15);
+
+	memcpy((void *)mb_info->MB_VSN_FW0,"2020.11.18",10);
+	memcpy((void *)mb_info->MB_VSN_FW1,"2020.11.15",10);
+	memcpy((void *)db_info1->DB_VSN_FW,"2020.11.12",10);
+	memcpy((void *)db_info2->DB_VSN_FW,"2020.11.12",10);
+	memcpy((void *)db_info3->DB_VSN_FW,"2020.11.12",10);
+	memcpy((void *)db_info4->DB_VSN_FW,"2020.11.10",10);
+	memcpy((void *)db_info5->DB_VSN_FW,"2020.11.10",10);
+	memcpy((void *)db_info6->DB_VSN_FW,"2020.11.08",10);
+	memcpy((void *)db_info7->DB_VSN_FW,"2020.11.08",10);
+
+	/* State Cutover Flag */
+	u8 cutover_flag = 0x00;
+	//vTaskSuspendAll Suspend All Task
+	//xTaskResumeAll Suspend All Task
+	/* DPS Power On Test */
+
+	/* Timeout Count */
+	float ipower, opower, current;
+	u16 temp;
+	u8 count;
+	u32 err_pos = 0x00;
+	u32 pat_e_pos = 0x00;
+	u32 pin[4] = {0x00};
+	/* Sample Data */
+	samp_data->aging_state = AGING_WAIT;
+	ipower = 3.3f;
+	opower = 3.2f;
+	current = 0.5f;
+	temp = 6000U;
+
+	/* Pattern Running State */
+	u8 state = 0x0;
+	/* Dps Enable Flag */
+	pat_r->pat_r_sts = 0xFF;
+
+	for ( ; ;)
+	{
+		/* Delay For 1 Second. */
+		vTaskDelay(x1second);
+
+		switch (sys_sts) {
+			case SYS_IDLE: {
+				if (Get_Dps_Cfg_Flag()) {
+//					DPS_Config();
+//					DPS_Spl_Config();
+					/* Clear Data */
+					Set_Dps_Enable_Flag();
+					samp_data->aging_state = AGING_READY;
+					samp_data->aging_time = 0x00;
+					Clear_Dps_Cfg_Flag();
+				}
+			}
+			break;
+			case SYS_RUNNING: {
+				if (samp_data->aging_time >= dps_cfg->aging_time) {
+					if (aging_ctl->stop_flag) {
+						System_State_Set_Stop();
+						cutover_flag = 0x01;
+						samp_data->aging_state = AGING_CPL;
+					}
+				}
+				if (Get_Dps_Enable_Flag()) {
+//					DPS_Enable();
+					Clear_Dps_Enable_Flag();
+				}
+				if (Get_FPGA_Cfg1_Flag()) {
+//					FPGA_Config1();
+					Clear_FPGA_Cfg1_Flag();
+				}
+				if (Get_FPGA_Cfg2_Flag()) {
+//					FPGA_Config2();
+					Clear_FPGA_Cfg2_Flag();
+				}
+				/* Sample Data */
+				if (AGING_DO == samp_data->aging_state) {
+					/* Sample Data */
+					samp_data->aging_time++;
+
+					ipower += 0.1f;
+					current += 0.1f;
+					temp += 10U;
+
+					if (3.35f < opower) {
+						opower = 3.2f;
+					}
+
+					if (1.0f < current) {
+						current = 0.5f;
+					}
+
+					if (6200U == temp) {
+						temp = 6000U;
+					}
+
+					for (count = 0 ; count < 16 ; count++) {
+						samp_data->in_power_voltafe[count] = (u16)(ipower * 1000);;
+						samp_data->out_power_voltage[count] = (u16)(opower * 1000);
+						samp_data->power_current[count] = (u16)(current * 1000);
+						samp_data->power_commu_state[count] = 0x00;
+					}
+
+					for (count = 0 ; count < 16 ; count++) {
+						samp_data->sample_info[count].temperature = temp;
+						samp_data->sample_info[count].out_cur[1] = (u16)(current * 1000);
+						samp_data->sample_info[count].out_vol[1] = (u16)(opower * 1000);
+						samp_data->sample_info[count].sample_time = samp_data->aging_time;
+						samp_data->sample_info[count].warn_state = 0x00;
+					}
+				}
+				else if (0x05 == samp_data->aging_state) {
+					/* Sample Data */
+					samp_data->aging_time = 0x00;
+
+					for (count = 0 ; count < 6 ; count++) {
+						samp_data->in_power_voltafe[count] = 0x00;
+						samp_data->out_power_voltage[count] = (u16)(0.0f * 1000);
+						samp_data->power_current[count] = (u16)(0.000f * 1000);
+						samp_data->power_commu_state[count] = 0x00;
+					}
+
+					for (count = 0 ; count < 8 ; count++) {
+						samp_data->sample_info[count].temperature = (0);
+						samp_data->sample_info[count].out_cur[count] = (u16)(0.000f * 1000);
+						samp_data->sample_info[count].out_vol[count] = (u16)(0.000f * 1000);
+						samp_data->sample_info[count].sample_time = 0x0000;
+						samp_data->sample_info[count].warn_state = 0x00;
+					}
+				}
+
+				/* Pattern Error Infotmaiont */
+				err_pos = 0x01;
+				memset((void *)pat_err->pin_error_count ,(u16)err_pos,\
+						PIN_NUMBER);
+
+				/* Pattern Compare Information */
+				pin[3] = 0x00000001;
+				pat_e_pos++;
+				pat_c->pin_compare_err_pos = pat_e_pos;
+				pat_c->pin_mask[0] = pin[0];
+				pat_c->pin_mask[1] = pin[1];
+				pat_c->pin_mask[2] = pin[2];
+				pat_c->pin_mask[3] = pin[3];
+
+				/* Pattern Running State */
+				if (state) {
+					state = 0x00;
+				}
+				else {
+					state = 0x01;
+				}
+				pat_r->pat_r_sts = state;
+				pat_r->pat_err_count = 0x01;
+
+			}
+			break;
+			case SYS_STOP: {
+				if (cutover_flag) {
+					/* DPS Enable */
+//					DPS_Disable();
+					/* FPGA Enable */
+//					FPGA_Disable();
+					/* DPS Sample Disable */
+//					DPS_Sample_Disable();
+					cutover_flag = 0x00;
+					samp_data->aging_state = AGING_STOP;
+				}
+
+				if (Get_Dps_Cfg_Flag())  {
+					System_State_Set_Idle();
+				}
+			}
+			break;
+			default : {
+
+			}
+			break;
+		}
+
+	}
+
+    /* Delete Task Itself */
+	vTaskDelete(NULL);
+}
+
+
+/*
+  ** Function Name        : System_State_Set_Idle
+  ** Function Description : Set System State In Idle State
+  ** Function Parameter   :	Void
+  ** Function Return	  :	SET_SUCCESS         : Return Always
+  ** Notes				  : None
+*/
+u8 System_State_Set_Idle(void)
+{
+	sys_sts = SYS_IDLE;
+	return SET_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : System_State_Set_Running
+  ** Function Description : Set System State In Running State
+  ** Function Parameter   :	Void
+  ** Function Return	  :	SET_SUCCESS         : Return Always
+  ** Notes				  : None
+*/
+u8 System_State_Set_Running(void)
+{
+	sys_sts = SYS_RUNNING;
+	return SET_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : System_State_Set_Stop
+  ** Function Description : Set System State In Stop State
+  ** Function Parameter   :	Void
+  ** Function Return	  :	SET_SUCCESS         : Return Always
+  ** Notes				  : None
+*/
+u8 System_State_Set_Stop(void)
+{
+	sys_sts = SYS_STOP;
+	return SET_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Set_Dps_Enable_Flag
+  ** Function Description : Set Dps Enable Flag
+  ** Function Parameter   : Void
+  ** Function Return      : SET_SUCCESS         : Always
+  ** Notes				  : None
+*/
+u8 Set_Dps_Enable_Flag(void)
+{
+	dps_enable = 0x01;
+	return SET_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Get_Dps_Enable_Flag
+  ** Function Description : Get Dps Enable Flag
+  ** Function Parameter   : Void
+  ** Function Return      : u8			 		: Dps_Cfg_Flag Value
+  ** Notes				  : None
+*/
+u8 Get_Dps_Enable_Flag(void)
+{
+	return dps_enable;
+}
+
+
+/*
+  ** Function Name        : Clear_Dps_Enable_Flag
+  ** Function Description : Clear Dps Enable Flag
+  ** Function Parameter   : Void
+  ** Function Return      : CLEAR_SUCCESS       : Always
+  ** Notes				  : None
+*/
+u8 Clear_Dps_Enable_Flag(void)
+{
+	dps_enable = 0x00;
+	return CLEAR_SUCCESS;
+}
+
+
+/*
+  ** (C) COPYRIGHT ChengDuHangke END OF FILE
+*/
+
+

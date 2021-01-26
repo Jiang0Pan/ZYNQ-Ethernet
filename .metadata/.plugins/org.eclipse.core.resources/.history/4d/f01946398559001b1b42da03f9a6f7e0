@@ -1,0 +1,415 @@
+/*
+  ** @file           : mt25ql512.c
+  ** @brief          : The Device Of MT25QL512(QSPI Flash Device) Header File
+  **
+  ** @attention
+  **
+  ** Copyright (c) 2020 ChengDuHangke.
+  ** All rights reserved.
+  **
+  ** This software is licensed by ChengDuHangke under Ultimate Liberty license
+  **
+*/
+
+
+/*
+  ** Include
+*/
+#include "qspi_bus.h"
+#include "mt25ql512.h"
+
+
+/*
+  ** Define
+*/
+/*
+  ** The Following Constants Define The Commands Which May
+  ** Be Sent To The Flash Device.
+*/
+#define 	WRITE_STATUS_CMD			(0x01)
+#define 	WRITE_CMD					(0x02)
+#define 	READ_CMD					(0x03)
+#define 	WRITE_DISABLE_CMD			(0x04)
+#define 	READ_STATUS_CMD				(0x05)
+#define 	WRITE_ENABLE_CMD			(0x06)
+#define 	FAST_READ_CMD				(0x0B)
+#define 	DUAL_READ_CMD				(0x3B)
+#define 	QUAD_READ_CMD				(0x6B)
+#define 	BULK_ERASE_CMD				(0xC7)
+#define		SEC_ERASE_CMD				(0xD8)
+#define 	READ_ID						(0x9F)
+#define 	READ_CONFIG_CMD				(0x35)
+#define 	WRITE_CONFIG_CMD			(0x01)
+#define 	BANK_REG_RD					(0x16)
+#define 	BANK_REG_WR					(0x17)
+/* Bank Register Is called Extended Address Register In Micron */
+#define 	EXTADD_REG_RD				(0xC8)
+#define 	EXTADD_REG_WR				(0xC5)
+#define		DIE_ERASE_CMD				(0xC4)
+#define 	READ_FLAG_STATUS_CMD		(0x70)
+/*
+  ** The Following Constants Define The Offsets Within A FlashBuffer Data
+  ** Type For Each Kind Of Data. Note That The Read Data Offset Is Not The
+  ** Same As The Write Data Because The QSPI Driver Ts Designed To Allow Full
+  ** Duplex Transfers Such That The Number Of Bytes Received Is The Number
+  ** Sent And Received.
+*/
+/* Flash Instruction */
+#define 	COMMAND_OFFSET				(0)
+/* MSB Byte Of Address To Read Or Write */
+#define 	ADDRESS_1_OFFSET			(1)
+/* Middle Byte Of Address To Read Or Write */
+#define 	ADDRESS_2_OFFSET			(2)
+/* LSB byte of address to read or write */
+#define 	ADDRESS_3_OFFSET			(3)
+/* Start of Data for Read/Write */
+#define 	DATA_OFFSET					(4)
+/* Dummy Byte Offset For Fast, Dual And Quad Reads */
+#define 	DUMMY_OFFSET				(4)
+/* Number Of Dummy Bytes For Fast, Fual And Quad Reads */
+#define 	DUMMY_SIZE					(1)
+/* Read ID Command + 3 Bytes ID Response */
+#define 	RD_ID_SIZE					(4)
+/* Bulk Erase Command Size */
+#define 	BULK_ERASE_SIZE				(1)
+/* Sector Erase Command + Sector Address */
+#define 	SEC_ERASE_SIZE				(4)
+/* BRWR Or EARWR Command + 1 Byte Bank Value */
+#define 	BANK_SEL_SIZE				(2)
+/* 1 Byte Configuration Register + RD CFG Command*/
+#define 	RD_CFG_SIZE					(2)
+/* WRR Command + 1 Byte Each Status And Config Reg*/
+#define 	WR_CFG_SIZE					(3)
+/* Die Erase Command + Die Address */
+#define 	DIE_ERASE_SIZE				(4)
+/*
+  ** The Following Constants Specify The Extra Bytes Which Are Sent To The
+  ** Flash On The QSPI Interface, That Are Not Data, But Control Information
+  ** Which Includes The Command And Address
+*/
+#define 	OVERHEAD_SIZE				(4)
+/* Base Address Of Flash1 */
+#define 	FLASH1BASE 					(0x0000000)
+/* 16 MB */
+#define 	SIXTEENMB 					(0x1000000)
+/* Mask For Quad Enable Bit In Flash Configuration Register */
+#define 	FLASH_QUAD_EN_MASK 			(0x02)
+#define 	FLASH_SRWD_MASK 			(0x80)
+/* Bank Mask */
+#define 	BANKMASK 					(0xF000000)
+/*
+  ** Identification of Flash
+  ** Micron Company:
+  ** Byte 0 is Manufacturer ID;
+  ** Byte 1 is First Byte Of Device ID - 0xBB or 0xBA
+  ** Byte 2 is Second Byte Of Device ID Describes Flash Size:
+  ** 128Mbit : 0x18;
+  ** 256Mbit : 0x19;
+  ** 512Mbit : 0x20
+  ** Spansion Company:
+  ** Byte 0 is Manufacturer ID;
+  ** Byte 1 is Device ID - Memory Interface Type - 0x20 Or 0x02
+  ** Byte 2 is Second Byte Of Device ID Describes Flash Size:
+  ** 128Mbit : 0x18;
+  ** 256Mbit : 0x19;
+  ** 512Mbit : 0x20
+*/
+#define 	MICRON_ID_BYTE0				(0x20)
+#define 	MICRON_ID_BYTE2_128			(0x18)
+#define 	MICRON_ID_BYTE2_256			(0x19)
+#define 	MICRON_ID_BYTE2_512			(0x20)
+#define 	MICRON_ID_BYTE2_1G			(0x21)
+#define 	SPANSION_ID_BYTE0			(0x01)
+#define 	SPANSION_ID_BYTE2_128		(0x18)
+#define 	SPANSION_ID_BYTE2_256		(0x19)
+#define 	SPANSION_ID_BYTE2_512		(0x20)
+#define 	WINBOND_ID_BYTE0			(0xEF)
+#define 	WINBOND_ID_BYTE2_128		(0x18)
+#define 	MACRONIX_ID_BYTE0			(0xC2)
+#define 	MACRONIX_ID_BYTE2_512		(0x3A)
+/*
+ * The Index For Flash Config Table
+ */
+/* Spansion*/
+#define		SPANSION_INDEX_START			(0)
+#define 	FLASH_CFG_TBL_SINGLE_128_SP		(SPANSION_INDEX_START)
+#define 	FLASH_CFG_TBL_STACKED_128_SP	(SPANSION_INDEX_START + 1)
+#define 	FLASH_CFG_TBL_PARALLEL_128_SP	(SPANSION_INDEX_START + 2)
+#define 	FLASH_CFG_TBL_SINGLE_256_SP		(SPANSION_INDEX_START + 3)
+#define 	FLASH_CFG_TBL_STACKED_256_SP	(SPANSION_INDEX_START + 4)
+#define 	FLASH_CFG_TBL_PARALLEL_256_SP	(SPANSION_INDEX_START + 5)
+#define 	FLASH_CFG_TBL_SINGLE_512_SP		(SPANSION_INDEX_START + 6)
+#define 	FLASH_CFG_TBL_STACKED_512_SP	(SPANSION_INDEX_START + 7)
+#define 	FLASH_CFG_TBL_PARALLEL_512_SP	(SPANSION_INDEX_START + 8)
+/* Micron */
+#define 	MICRON_INDEX_START				(FLASH_CFG_TBL_PARALLEL_512_SP + 1)
+#define 	FLASH_CFG_TBL_SINGLE_128_MC		MICRON_INDEX_START
+#define 	FLASH_CFG_TBL_STACKED_128_MC	(MICRON_INDEX_START + 1)
+#define 	FLASH_CFG_TBL_PARALLEL_128_MC	(MICRON_INDEX_START + 2)
+#define 	FLASH_CFG_TBL_SINGLE_256_MC		(MICRON_INDEX_START + 3)
+#define 	FLASH_CFG_TBL_STACKED_256_MC	(MICRON_INDEX_START + 4)
+#define 	FLASH_CFG_TBL_PARALLEL_256_MC	(MICRON_INDEX_START + 5)
+#define 	FLASH_CFG_TBL_SINGLE_512_MC		(MICRON_INDEX_START + 6)
+#define 	FLASH_CFG_TBL_STACKED_512_MC	(MICRON_INDEX_START + 7)
+#define 	FLASH_CFG_TBL_PARALLEL_512_MC	(MICRON_INDEX_START + 8)
+#define 	FLASH_CFG_TBL_SINGLE_1GB_MC		(MICRON_INDEX_START + 9)
+#define 	FLASH_CFG_TBL_STACKED_1GB_MC	(MICRON_INDEX_START + 10)
+#define 	FLASH_CFG_TBL_PARALLEL_1GB_MC	(MICRON_INDEX_START + 11)
+/* Winbond */
+#define 	WINBOND_INDEX_START				(FLASH_CFG_TBL_PARALLEL_1GB_MC + 1)
+#define 	FLASH_CFG_TBL_SINGLE_128_WB		(WINBOND_INDEX_START)
+#define 	FLASH_CFG_TBL_STACKED_128_WB	(WINBOND_INDEX_START + 1)
+#define 	FLASH_CFG_TBL_PARALLEL_128_WB	(WINBOND_INDEX_START + 2)
+/* Macronix */
+#define 	MACRONIX_INDEX_START			(FLASH_CFG_TBL_PARALLEL_128_WB + 1 - 6)
+#define 	FLASH_CFG_TBL_SINGLE_512_MX		(MACRONIX_INDEX_START)
+#define 	FLASH_CFG_TBL_STACKED_512_MX	(MACRONIX_INDEX_START + 1)
+#define 	FLASH_CFG_TBL_PARALLEL_512_MX	(MACRONIX_INDEX_START + 2)
+
+/* Number Of Flash Pages To Be Written */
+#define 	PAGE_COUNT					(32)
+/* Max Page Size To Initialize Write And Read Buffer */
+#define 	MAX_PAGE_SIZE 				(1024)
+/* Flash Address To Which Data Is To Be Written. */
+#define 	TEST_ADDRESS				(0x000000)
+#define 	UNIQUE_VALUE				(0x06)
+
+
+/*
+  ** Typedef
+*/
+typedef struct Flash_Info {
+	/* Individual Sector Size Or Combined Sector Size In Case Of Parallel Config */
+	u32 SectSize;
+	/* Total No. Of Sectors In One/Two Flash Devices */
+	u32 NumSect;
+	/* Individual Page Size Or Combined Page Size In Case Of Parallel Config*/
+	u32 PageSize;
+	/* Total No. Of Pages In One/Two Flash Devices */
+	u32 NumPage;
+	/*
+	  ** This Is The Size Of One Flash Device NOT \
+	  ** The Combination Of Both Devices, If Present
+    */
+	u32 FlashDeviceSize;
+	/* Manufacturer ID - Used To Identify Make */
+	u8 ManufacturerID;
+	/* Byte Of Device ID Indicating The Memory Size */
+	u8 DeviceIDMemSize;
+	/* Mask To Get Sector Start Address */
+	u32 SectMask;
+	/* No. Of Die Forming A Single Flash */
+	u8 NumDie;
+}FlashInfo;
+
+
+FlashInfo Flash_Config_Table[27] = {
+		/* Spansion */
+		{0x10000, 0x100, 256, 0x10000, 0x1000000,
+				SPANSION_ID_BYTE0, SPANSION_ID_BYTE2_128, 0xFFFF0000, 1},
+		{0x10000, 0x200, 256, 0x20000, 0x1000000,
+				SPANSION_ID_BYTE0, SPANSION_ID_BYTE2_128, 0xFFFF0000, 1},
+		{0x20000, 0x100, 512, 0x10000, 0x1000000,
+				SPANSION_ID_BYTE0, SPANSION_ID_BYTE2_128, 0xFFFE0000, 1},
+		{0x10000, 0x200, 256, 0x20000, 0x2000000,
+				SPANSION_ID_BYTE0, SPANSION_ID_BYTE2_256, 0xFFFF0000, 1},
+		{0x10000, 0x400, 256, 0x40000, 0x2000000,
+				SPANSION_ID_BYTE0, SPANSION_ID_BYTE2_256, 0xFFFF0000, 1},
+		{0x20000, 0x200, 512, 0x20000, 0x2000000,
+				SPANSION_ID_BYTE0, SPANSION_ID_BYTE2_256, 0xFFFE0000, 1},
+		{0x40000, 0x100, 512, 0x20000, 0x4000000,
+				SPANSION_ID_BYTE0, SPANSION_ID_BYTE2_512, 0xFFFC0000, 1},
+		{0x40000, 0x200, 512, 0x40000, 0x4000000,
+				SPANSION_ID_BYTE0, SPANSION_ID_BYTE2_512, 0xFFFC0000, 1},
+		{0x80000, 0x100, 1024, 0x20000, 0x4000000,
+				SPANSION_ID_BYTE0, SPANSION_ID_BYTE2_512, 0xFFF80000, 1},
+		/* Spansion 1Gbit is handled as 512Mbit stacked */
+		/* Micron */
+		{0x10000, 0x100, 256, 0x10000, 0x1000000,
+				MICRON_ID_BYTE0, MICRON_ID_BYTE2_128, 0xFFFF0000, 1},
+		{0x10000, 0x200, 256, 0x20000, 0x1000000,
+				MICRON_ID_BYTE0, MICRON_ID_BYTE2_128, 0xFFFF0000, 1},
+		{0x20000, 0x100, 512, 0x10000, 0x1000000,
+				MICRON_ID_BYTE0, MICRON_ID_BYTE2_128, 0xFFFE0000, 1},
+		{0x10000, 0x200, 256, 0x20000, 0x2000000,
+				MICRON_ID_BYTE0, MICRON_ID_BYTE2_256, 0xFFFF0000, 1},
+		{0x10000, 0x400, 256, 0x40000, 0x2000000,
+				MICRON_ID_BYTE0, MICRON_ID_BYTE2_256, 0xFFFF0000, 1},
+		{0x20000, 0x200, 512, 0x20000, 0x2000000,
+				MICRON_ID_BYTE0, MICRON_ID_BYTE2_256, 0xFFFE0000, 1},
+		{0x10000, 0x400, 256, 0x40000, 0x4000000,
+				MICRON_ID_BYTE0, MICRON_ID_BYTE2_512, 0xFFFF0000, 2},
+		{0x10000, 0x800, 256, 0x80000, 0x4000000,
+				MICRON_ID_BYTE0, MICRON_ID_BYTE2_512, 0xFFFF0000, 2},
+		{0x20000, 0x400, 512, 0x40000, 0x4000000,
+				MICRON_ID_BYTE0, MICRON_ID_BYTE2_512, 0xFFFE0000, 2},
+		{0x10000, 0x800, 256, 0x80000, 0x8000000,
+				MICRON_ID_BYTE0, MICRON_ID_BYTE2_1G, 0xFFFF0000, 4},
+		{0x10000, 0x1000, 256, 0x100000, 0x8000000,
+				MICRON_ID_BYTE0, MICRON_ID_BYTE2_1G, 0xFFFF0000, 4},
+		{0x20000, 0x800, 512, 0x80000, 0x8000000,
+				MICRON_ID_BYTE0, MICRON_ID_BYTE2_1G, 0xFFFE0000, 4},
+		/* Winbond */
+		{0x10000, 0x100, 256, 0x10000, 0x1000000,
+				WINBOND_ID_BYTE0, WINBOND_ID_BYTE2_128, 0xFFFF0000, 1},
+		{0x10000, 0x200, 256, 0x20000, 0x1000000,
+				WINBOND_ID_BYTE0, WINBOND_ID_BYTE2_128, 0xFFFF0000, 1},
+		{0x20000, 0x100, 512, 0x10000, 0x1000000,
+				WINBOND_ID_BYTE0, WINBOND_ID_BYTE2_128, 0xFFFE0000, 1},
+		/* Macronix */
+		{0x10000, 0x400, 256, 0x40000, 0x4000000,
+				MACRONIX_ID_BYTE0, MACRONIX_ID_BYTE2_512, 0xFFFF0000, 1},
+		{0x10000, 0x800, 256, 0x80000, 0x4000000,
+				MACRONIX_ID_BYTE0, MACRONIX_ID_BYTE2_512, 0xFFFF0000, 1},
+		{0x20000, 0x400, 512, 0x40000, 0x4000000,
+				MACRONIX_ID_BYTE0, MACRONIX_ID_BYTE2_512, 0xFFFE0000, 1}
+};				/**< Flash Config Table */
+
+
+/*
+  ** Function Name        : Emio_Config
+  ** Function Description : Emio Config
+  ** Function Parameter   : DeviceId            : Gpio Device Id
+  **                        Emio				: Point To XGpioPs Pointer
+  ** Function Return      : CONFIG_SUCCESS 		: Config Success
+  **                        CONFIG_FAILED	    : Config Fail
+  ** Notes				  : None
+*/
+int Read_Flash_ID(u8 *WriteBfrPtr, u8 *ReadBfrPtr)
+{
+	u8 status;
+	int StartIndex;
+
+	/*
+	 * Read ID in Auto mode.
+	 */
+	WriteBfrPtr[COMMAND_OFFSET]   = READ_ID;
+	WriteBfrPtr[ADDRESS_1_OFFSET] = 0x23;		/* 3 dummy bytes */
+	WriteBfrPtr[ADDRESS_2_OFFSET] = 0x08;
+	WriteBfrPtr[ADDRESS_3_OFFSET] = 0x09;
+
+	status = Qspi_Write_Read(WriteBfrPtr, ReadBfrPtr, RD_ID_SIZE);
+	if (READ_SUCCESS != Status) {
+		return READ_FAILED;
+	}
+
+	/*
+	 * Deduce flash make
+	 */
+	if(ReadBfrPtr[1] == MICRON_ID_BYTE0) {
+		FlashMake = MICRON_ID_BYTE0;
+		StartIndex = MICRON_INDEX_START;
+	}else if(ReadBfrPtr[1] == SPANSION_ID_BYTE0) {
+		FlashMake = SPANSION_ID_BYTE0;
+		StartIndex = SPANSION_INDEX_START;
+	}else if(ReadBfrPtr[1] == WINBOND_ID_BYTE0) {
+		FlashMake = WINBOND_ID_BYTE0;
+		StartIndex = WINBOND_INDEX_START;
+	} else if(ReadBfrPtr[1] == MACRONIX_ID_BYTE0) {
+		FlashMake = MACRONIX_ID_BYTE0;
+		StartIndex = MACRONIX_INDEX_START;
+	}
+
+
+	/*
+	 * If valid flash ID, then check connection mode & size and
+	 * assign corresponding index in the Flash configuration table
+	 */
+	if(((FlashMake == MICRON_ID_BYTE0) || (FlashMake == SPANSION_ID_BYTE0)||
+			(FlashMake == WINBOND_ID_BYTE0)) &&
+			(ReadBfrPtr[3] == MICRON_ID_BYTE2_128)) {
+
+		switch(QspiPtr->Config.ConnectionMode)
+		{
+			case XQSPIPS_CONNECTION_MODE_SINGLE:
+				FCTIndex = FLASH_CFG_TBL_SINGLE_128_SP + StartIndex;
+				break;
+			case XQSPIPS_CONNECTION_MODE_PARALLEL:
+				FCTIndex = FLASH_CFG_TBL_PARALLEL_128_SP + StartIndex;
+				break;
+			case XQSPIPS_CONNECTION_MODE_STACKED:
+				FCTIndex = FLASH_CFG_TBL_STACKED_128_SP + StartIndex;
+				break;
+			default:
+				FCTIndex = 0;
+				break;
+		}
+	}
+	/* 256 and 512Mbit supported only for Micron and Spansion, not Winbond */
+	if(((FlashMake == MICRON_ID_BYTE0) || (FlashMake == SPANSION_ID_BYTE0)) &&
+			(ReadBfrPtr[3] == MICRON_ID_BYTE2_256)) {
+
+		switch(QspiPtr->Config.ConnectionMode)
+		{
+			case XQSPIPS_CONNECTION_MODE_SINGLE:
+				FCTIndex = FLASH_CFG_TBL_SINGLE_256_SP + StartIndex;
+				break;
+			case XQSPIPS_CONNECTION_MODE_PARALLEL:
+				FCTIndex = FLASH_CFG_TBL_PARALLEL_256_SP + StartIndex;
+				break;
+			case XQSPIPS_CONNECTION_MODE_STACKED:
+				FCTIndex = FLASH_CFG_TBL_STACKED_256_SP + StartIndex;
+				break;
+			default:
+				FCTIndex = 0;
+				break;
+		}
+	}
+	if ((((FlashMake == MICRON_ID_BYTE0) || (FlashMake == SPANSION_ID_BYTE0)) &&
+			(ReadBfrPtr[3] == MICRON_ID_BYTE2_512)) || ((FlashMake ==
+			MACRONIX_ID_BYTE0) && (ReadBfrPtr[3] == MACRONIX_ID_BYTE2_512))) {
+
+		switch(QspiPtr->Config.ConnectionMode)
+		{
+			case XQSPIPS_CONNECTION_MODE_SINGLE:
+				FCTIndex = FLASH_CFG_TBL_SINGLE_512_SP + StartIndex;
+				break;
+			case XQSPIPS_CONNECTION_MODE_PARALLEL:
+				FCTIndex = FLASH_CFG_TBL_PARALLEL_512_SP + StartIndex;
+				break;
+			case XQSPIPS_CONNECTION_MODE_STACKED:
+				FCTIndex = FLASH_CFG_TBL_STACKED_512_SP + StartIndex;
+				break;
+			default:
+				FCTIndex = 0;
+				break;
+		}
+	}
+	/*
+	 * 1Gbit Single connection supported for Spansion.
+	 * The ConnectionMode will indicate stacked as this part has 2 SS
+	 * The device ID will indicate 512Mbit.
+	 * This configuration is handled as the above 512Mbit stacked configuration
+	 */
+	/* 1Gbit single, parallel and stacked supported for Micron */
+	if((FlashMake == MICRON_ID_BYTE0) &&
+			(ReadBfrPtr[3] == MICRON_ID_BYTE2_1G)) {
+
+		switch(QspiPtr->Config.ConnectionMode)
+		{
+			case XQSPIPS_CONNECTION_MODE_SINGLE:
+				FCTIndex = FLASH_CFG_TBL_SINGLE_1GB_MC;
+				break;
+			case XQSPIPS_CONNECTION_MODE_PARALLEL:
+				FCTIndex = FLASH_CFG_TBL_PARALLEL_1GB_MC;
+				break;
+			case XQSPIPS_CONNECTION_MODE_STACKED:
+				FCTIndex = FLASH_CFG_TBL_STACKED_1GB_MC;
+				break;
+			default:
+				FCTIndex = 0;
+				break;
+		}
+	}
+
+	xil_printf("FlashID=0x%x 0x%x 0x%x\n\r", ReadBfrPtr[1], ReadBfrPtr[2],
+		   ReadBfrPtr[3]);
+
+	return XST_SUCCESS;
+}
+
+/*
+  ** (C) COPYRIGHT ChengDuHangke END OF FILE
+*/
+
+

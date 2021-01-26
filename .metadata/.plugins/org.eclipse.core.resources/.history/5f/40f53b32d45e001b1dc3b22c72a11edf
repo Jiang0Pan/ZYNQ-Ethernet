@@ -1,0 +1,499 @@
+/*
+  ** @file           : data_srtuct.h
+  ** @brief          : Ethernet Data Struct Header File
+  **
+  ** @attention
+  **
+  ** Copyright (c) 2020 ChengDuHangke.
+  ** All rights reserved.
+  **
+  ** This software is licensed by ChengDuHangke under Ultimate Liberty license
+  **
+*/
+
+
+#ifndef SRC_INCLUDE_DEVICE_ETHERNET_DATA_STRUCT_H_
+#define SRC_INCLUDE_DEVICE_ETHERNET_DATA_STRUCT_H_
+
+
+/*
+  ** Include
+*/
+#include "xil_types.h"
+
+
+/*
+  ** Define
+*/
+/* Min Data Length */
+#define     MINLENGTH           (0x00)
+/* Beep Control */
+#define     BEEP_DISABLE        (0x00)
+#define     BEEP_ENABLE         (0x01)
+#define     BEEP_OFF            (0x00)
+#define     BEEP_0N             (0x01)
+/* Frame Pattern Max Size */
+#define     PATTERN_SIZE        (0x100000)
+/* Firmware Frame Max Size */
+#define     FIRWARE_MAX_SIZE    (0x100004)
+/* Pin Channel Number */
+#define     PIN_NUMBER          (128)
+/* Dps Channel Number */
+#define     DPS_CHN_NUMBER      (16)
+/* Temperature Sample Parameter */
+#define     TEMP_CHN_NUMBER     (16)
+
+
+/*
+  ** Management Board Information
+*/
+/* EEPROM Information : Product Nunber Size */
+#define     MB_ERP_PN_SIZE      (0x20)
+/* EEPROM Information : Serial Number Size */
+#define     MB_ERP_SN_SIZE      (0x20)
+/* EEPROM Information : Reserved Size */
+#define		MB_ERP_RSD_SIZE     (0x7FC0)
+/* Version Information : Hardware Version Size */
+#define     MB_VSN_HW_SIZE      (0x10)
+/* Version Information : Chip0 Firmware Version Size */
+#define     MB_VSN_FW0_SIZE     (0x10)
+/* Version Information : Chip0 Firmware Compilation Time Size */
+#define		MB_VSN_FWCT0_SIZE   (0x10)
+/* Version Information : Chip1 Firmware Version Size */
+#define     MB_VSN_FW1_SIZE     (0x10)
+/* Version Information : Chip1 Firmware Compilation Time Size */
+#define		MB_VSN_FWCT1_SIZE   (0x10)
+/* Version Information : Reserved Size */
+#define		MB_VSN_RSD_SIZE     (0x3B0)
+/* Other Information : Board Type Size */
+#define     MB_OTR_BT_SIZE      (0x4)
+/* Other Information : Reserved Size */
+#define     MB_OTR_RSD_SIZE     (0x3FC)
+
+/*
+  ** Driver Board And DPS Board Information
+*/
+/* EEPROM Information : Product Nunber Size */
+#define     DB_ERP_PN_SIZE      (0x20)
+/* EEPROM Information : Serial Number Size */
+#define     DB_ERP_SN_SIZE      (0x20)
+/* EEPROM Information : Reserved Size */
+#define		DB_ERP_RSD_SIZE     (0x7FC0)
+/* Version Information : Hardware Version Size */
+#define     DB_VSN_HW_SIZE      (0x10)
+/* Version Information : Chip Firmware Version Size */
+#define     DB_VSN_FW_SIZE      (0x10)
+/* Version Information : Chip Firmware Compilation Time Size */
+#define		DB_VSN_FWCT_SIZE    (0x10)
+/* Version Information : Reserved Size */
+#define		DB_VSN_RSD_SIZE     (0x3D0)
+/* Other Information : Board Type Size */
+#define     DB_OTR_BT_SIZE      (0x4)
+/* Other Information : Reserved Size */
+#define     DB_OTR_RSD_SIZE     (0x3FC)
+
+#define 	DELAY_1_SECOND		(1000UL)
+
+
+/*
+  ** Typedef Struct
+*/
+#pragma pack(push)
+#pragma pack(1)
+
+/* Beep Control . Command:0x2003 */
+typedef struct Beep_Control {
+	/* Beep State Control */
+	u16 state;
+	/* Beep Enable Control */
+	u16 enable;
+}Beep_Control_t;
+
+/* Timer Synchronous . Command:0xA050 */
+typedef struct Time_Sync {
+	/* Second */
+	u8 sec;
+	/* Minute */
+	u8 min;
+	/* Hour */
+	u8 hour;
+	/* Days */
+	u8 day;
+	/* Month */
+	u8 month;
+	/* Year */
+	u8 year;
+	/* Century */
+	u8 century;
+	/* Reserved */
+	u8 reserved;
+}Time_Sync_t;
+
+/* DPS Config */
+typedef struct Dps{
+	/* Dps Enactment Output Voltage */
+	u16 dps_ovoltage;
+	/* Max Dps Enactment Output Voltage */
+	u16 dps_max_ovoltage;
+	/* Min Dps Enactment Output Voltage */
+	u16 dps_min_ovoltage;
+	/* Max Dps Enactment Input Voltage */
+	u16 dps_max_ivoltage;
+	/* Min Dps Enactment Input Voltage */
+	u16 dps_min_ivoltage;
+	/* Max Electric Current */
+	u16 dps_max_current;
+	/* DPS Start Mode */
+	u16 dps_start_mode;
+	/* DPS Start time */
+	u16 dps_start_time;
+	/* DPS Start Step */
+	u16 dps_start_step;
+	/* DPS Srart Step Time */
+	u16 dps_start_step_time;
+	/* DPS Stop Mode */
+	u16 dps_stop_mode;
+	/* DPS Stop time */
+	u16 dps_stop_time;
+	/* DPS Stop Step */
+	u16 dps_stop_step;
+	/* DPS Stop Step Time */
+	u16 dps_stop_step_time;
+}Dps_t;
+/* DPS Config . Command:0xA151 */
+typedef struct Dps_Config{
+	/* Dps Channel Config */
+	Dps_t dps_cnl[DPS_CHN_NUMBER];
+	/* Aging Temperature */
+	u16 aging_temp;
+	/* Aging Board ID */
+	u16 aging_boardid;
+	/* Aging Continued Time */
+	u32 aging_time;
+	/* Max Aging Temperature */
+	u16 max_temp;
+}Dps_Config_t;
+
+/* Pattern Data To FPGA . Command:0xA152 */
+typedef struct Pattern {
+	u32 fpga_cs;
+	u32 position;
+	u8  patten[PATTERN_SIZE];
+}Pattern_t;
+
+/* PC Set System Aging State . Command:0xA153 */
+typedef struct System_State {
+	/* System Aging State */
+	u8 aging_state;
+	/* System Stop Flag */
+	u8 stop_flag;
+	/* System Error Protect Enable */
+	u16 pet_enable;
+	/* Already Aging Time */
+	u32	alr_aging_time;
+}System_State_t;
+
+/* PC Clear Aging Timer . Command:0xA154 */
+typedef struct Retime_Enable {
+	/* System Error Protect enable */
+	u16 clr_timer;
+}Retime_Enable_t;
+
+typedef struct Pin {
+	/* Pin Frequency */
+	u32 fre;
+	/* (One-way) Signal Amplitude VCLKH1 */
+	u16 ow_vclkh1;
+	/* (One-way) Signal Amplitude VCLKL1 */
+	u16 ow_vclkl1;
+	/* (One-way) Signal Amplitude VCLKH2 */
+	u16 ow_vclkh2;
+	/* (One-way) Signal Amplitude VCLKL2 */
+	u16 ow_vclkl2;
+	/* (Two-way) Signal Output Amplitude VCLKH1 */
+	u16 tw_vclkh1;
+	/* (Two-way) Signal Output Amplitude VCLKL1 */
+	u16 tw_vclkl1;
+	/* (Two-way) Signal Output Amplitude VCLKH2 */
+	u16 tw_vclkh1;
+	/* (Two-way) Signal Output Amplitude VCLKL2 */
+	u16 tw_vclkl1;
+	/* (Two-way) Signal Output Amplitude VCLKH3 */
+	u16 tw_vclkh1;
+	/* (Two-way) Signal Output Amplitude VCLKL3 */
+	u16 tw_vclkl1;
+	/* (Two-way) Signal Output Amplitude VCLKH1 */
+	u16 tw_vclkh1;
+	/* (Two-way) Signal Output Amplitude VCLKL1 */
+	u16 tw_vclkl1;
+
+}Pin_t;
+/* PC Clear Aging Timer . Command:0xA155 */
+typedef struct Pin_Config {
+	/* Pin Config Number */
+	Pin_t pin_cfg[5];
+}Pin_Config_t;
+
+
+/* Sample Data To PC . Command:0xA157 */
+typedef struct Sample_Data {
+	/* Aging Time */
+	u32 aging_time;
+	/* Aging Board Id */
+	u16 board_id;
+	/* Aging Board (Plug In) State */
+	u8  board_state;
+	/* System Aging State */
+	u8  aging_state;
+	/* Error Status */
+	u32 err_state;
+	/* Power Channel Input Voltafe */
+	u16 in_power_voltafe[DPS_CHN_NUMBER];
+	/* Power Channel Output Voltafe */
+	u16 out_power_voltage[DPS_CHN_NUMBER];
+	/* Power Channel Current */
+	u16 power_current[DPS_CHN_NUMBER];
+	/* Power Channel Temperature */
+	u16 power_tempture[DPS_CHN_NUMBER];
+	/* Power Communicate State */
+	u16 power_commu_state[DPS_CHN_NUMBER];
+	/* Temperature Sample State */
+	u16 temp_samp_sts[TEMP_CHN_NUMBER];
+	/* Sample Timer */
+	u32 sample_timer;
+}Sample_Data_t;
+
+/* DPS Channel Set State . Command:0xA159 */
+typedef struct DPS_Channel_Sts {
+	/* DPS Channel ID */
+	u16 dps_chl;
+	/*
+	  ** DPS Channel State .
+	  ** 0x5555 : Close DPS Channel Power
+	  ** 0xAAAA : Open  DPS Channel Power
+	*/
+	u16 dps_chl_sts;
+}DPS_Channel_Sts_t;
+
+/* Pattern Running Information . Command:0xA251 */
+typedef struct Pat_Err_Info {
+	/* Pin Error Count */
+	u16 pin_error_count[PIN_NUMBER];
+}Pat_Err_Info_t;
+
+/* Pattern Compare Information . Command:0xA252 */
+typedef struct Pat_Compare_Info {
+	/* Pin Compare Error Position */
+	u32 pin_compare_err_pos;
+	/* Pin Mask */
+	u32 pin_mask[4];
+}Pat_Compare_Info_t;
+
+/* Set Pattern Output State . Command:0xA253 */
+typedef struct Pat_Set_Sts {
+	/* which fpga  */
+	u16 fpga_cs;
+	/*
+	  ** Pattern Running State
+	  ** 0x08 : Start
+	  ** 0x00 : Stop
+	*/
+	u16 run_state;
+	/* Pattern Running Start Number */
+	u32 pat_r_num;
+	/* Pattern Running Count */
+	u32 pat_r_cnt;
+	/* Pattern Running Times */
+	u32 pat_r_tiems;
+	/* Pattern Running Max Timer */
+	u32 pat_r_timer;
+	/* Pattern Running Blank */
+	u32 pat_r_blank;
+}Pat_Set_Sts_t;
+
+/* Pattern Compare Information . Command:0xA254 */
+typedef struct Fpga_Version {
+	/* Fpga0 Version */
+	u16 fpga0_ver;
+	/* Fpga1 Version */
+	u16 fpga1_ver;
+	/* Fpga2 Version */
+	u16 fpga2_ver;
+	/* Fpga3 Version */
+	u16 fpga3_ver;
+	/* Fpga4 Version */
+	u16 fpga4_ver;
+}Fpga_Version_t;
+
+/* Pattern Compare Information (Debug) . Command:0xA256 */
+typedef struct Pat_Set_Sts_Debug{
+	/* which fpga  */
+	u16 fpga_cs;
+	/*
+	  ** Pattern Running State
+	  ** 0x08 : Start
+	  ** 0x00 : Stop
+	*/
+	u16 run_state;
+	/* Pattern Running Start Number */
+	u32 pat_r_num;
+	/* Pattern Running Count */
+	u32 pat_r_cnt;
+	/* Pattern Running Times */
+	u32 pat_r_tiems;
+	/* Pattern Running Max Timer */
+	u32 pat_r_timer;
+	/* Pattern Running Blank */
+	u32 pat_r_blank;
+}Pat_Set_Sts_Debug_t;
+
+/* Get Pattern Running State . Command:0xA257 */
+typedef struct Pattern_Running_Sts {
+	/* Pattern Runing State */
+	u32 pat_r_sts;
+	/* Pattern Runing Position */
+	u32 pat_r_pos;
+	/* Pattern Runing Current Position */
+	u32 pat_r_c_pos;
+	/* Pattern Runing Error Count */
+	u32 pat_err_count;
+}Pattern_Running_Sts_t;
+
+typedef struct Pin_Parameter {
+	/* Outptu Reversal Delay */
+	u32 o_rev_delay;
+	/* Compare Delay */
+	u32 c_delay;
+}Pin_Parameter_t;
+/* Set Pin Parameter . Command:0xA258 */
+typedef struct Set_Pin_Parameter {
+	Pin_Parameter_t Pin_Par[PIN_NUMBER];
+}Set_Pin_Parameter_t;
+
+/* Send Max9972 Debug Information . Command:0xACC0 */
+typedef struct Send_Max9972_Info {
+	/* Channel ID */
+	u16 channel;
+	/* Register Address */
+	u16 reg;
+	/* Register Data */
+	u16 reg_data;
+}Send_Max9972_Info_t;
+
+
+/* Management Board Information Command:0xACCC */
+typedef struct MB_Info {
+	/* EEPROM Information : Product Number */
+	u8 MB_ERP_PN[MB_ERP_PN_SIZE];
+	/* EEPROM Information : Serial Number */
+	u8 MB_ERP_SN[MB_ERP_SN_SIZE];
+	/* EEPROM Information : Reserved */
+	u8 MB_ERP_RSD[MB_ERP_RSD_SIZE];
+	/* Version Information : Hardware Version */
+	u8 MB_VSN_HW[MB_VSN_HW_SIZE];
+	/* Version Information : Chip0 Firmware Version */
+	u8 MB_VSN_FW0[MB_VSN_FW0_SIZE];
+	/* Version Information : Chip0 Firmware Compilation Time */
+	u8 MB_VSN_FWCT0[MB_VSN_FWCT0_SIZE];
+	/* Version Information : Chip1 Firmware Version */
+	u8 MB_VSN_FW1[MB_VSN_FW1_SIZE];
+	/* Version Information : Chip1 Firmware Compilation Time */
+	u8 MB_VSN_FWCT1[MB_VSN_FWCT1_SIZE];
+	/* Version Information : Reserved */
+	u8 MB_VSN_RSD[MB_VSN_RSD_SIZE];
+	/* Other Information : Board Type */
+    u8 MB_OTR_BT[MB_OTR_BT_SIZE];
+    /* Other Information : Reserved */
+    u8 MB_OTR_RSD[MB_OTR_RSD_SIZE];
+}MB_Info_t;
+
+/* Management Board Information Command:0xACCC */
+typedef struct DB_Info {
+	/* EEPROM Information : Product Number */
+	u8 DB_ERP_PN[DB_ERP_PN_SIZE];
+	/* EEPROM Information : Serial Number */
+	u8 DB_ERP_SN[DB_ERP_SN_SIZE];
+	/* EEPROM Information : Reserved */
+	u8 DB_ERP_RSD[DB_ERP_RSD_SIZE];
+	/* Version Information : Hardware Version */
+	u8 DB_VSN_HW[DB_VSN_HW_SIZE];
+	/* Version Information : Chip0 Firmware Version */
+	u8 DB_VSN_FW[DB_VSN_FW_SIZE];
+	/* Version Information : Chip0 Firmware Compilation Time */
+	u8 DB_VSN_FWCT[DB_VSN_FWCT_SIZE];
+	/* Version Information : Reserved */
+	u8 DB_VSN_RSD[DB_VSN_RSD_SIZE];
+	/* Other Information : Board Type */
+    u8 DB_OTR_BT[DB_OTR_BT_SIZE];
+    /* Other Information : Reserved */
+    u8 DB_OTR_RSD[DB_OTR_RSD_SIZE];
+}DB_Info_t;
+
+/* PC Read DDR Data . Command:0xACCC */
+typedef struct Read_DDR {
+	/* Read DDR Data Address */
+	u32 ddr_addr;
+	/* Read DDR Data Length */
+	u32 ddr_length;
+}Read_DDR_t;
+
+/* Upgrade Management Board Firmware . Command:0xACCD */
+typedef struct MB_Firmware {
+	/* Management Board Total Firmware Frame */
+	u16 mb_total_fir_frame;
+	/* Management Board Current Firmware Frame */
+	u16 mb_crt_fir_frame;
+	/* Management Board Firmware Data */
+	u8 mb_fir_data[FIRWARE_MAX_SIZE];
+}MB_Firmware_t;
+
+/* Upgrade Driver Board Firmware . Command:0xACCE */
+typedef struct DB_Firmware {
+	/* Driver Board Total Firmware Frame */
+	u16 db_total_fir_frame;
+	/* Driver Board Current Firmware Frame */
+	u16 db_fir_frame;
+	/* Driver Board Mask */
+	u16 db_mask;
+	/* Driver Board Firmware Data */
+	u8 db_fir_data[FIRWARE_MAX_SIZE];
+}DB_Firmware_t;
+
+/* DDR Test . Command:0xAF00 */
+typedef struct DDR_Test {
+	/* Which Fpga In Board */
+	u16 fpga_cs;
+	/*
+	  ** Test State
+	  ** 0x00 : Stop
+	  ** 0x01 : Start
+	*/
+	u16 test_sts;
+}DDR_Test_t;
+
+/* Get DDR Test State . Command:0xAF01 */
+typedef struct DDR_Test_State {
+	/* Which Fpga In Board */
+	u16 fpga_cs;
+	/*
+	  ** Test State
+	  ** 0x00 : Stop
+	  ** 0x01 : Testing
+	  ** 0x02 : Test Complete
+	  ** 0x03 : Test Abnormal
+	*/
+	u16 test_sts;
+	/* Already Test DDR Address */
+	u32	alr_test_addr;
+}DDR_Test_State_t;
+
+
+#pragma pack(pop)
+
+
+#endif /* SRC_INCLUDE_DEVICE_ETHERNET_DATA_STRUCT_H_ */
+
+
+/*
+  ** (C) COPYRIGHT ChengDuHangke END OF FILE
+*/

@@ -1,0 +1,12 @@
+09:27:45 **** Auto Build of configuration Debug for project IIC_TEST ****
+make all 
+'Building target: IIC_TEST.elf'
+'Invoking: ARM gcc linker'
+arm-xilinx-eabi-gcc -Wl,-T -Wl,../src/lscript.ld -L../../IIC_TEST_bsp/ps7_cortexa9_0/lib -o "IIC_TEST.elf"  ./src/main.o   -Wl,--start-group,-lxil,-lgcc,-lc,--end-group
+../../IIC_TEST_bsp/ps7_cortexa9_0/lib\libxil.a(xil-crt0.o): In function `_start':
+E:\Benchmaking_DI\Software\IIC_TEST_bsp\ps7_cortexa9_0\libsrc\standalone_v5_3\src/xil-crt0.S:133: undefined reference to `main'
+collect2.exe: error: ld returned 1 exit status
+make: *** [IIC_TEST.elf] ´íÎó 1
+
+09:27:47 Build Finished (took 1s.848ms)
+

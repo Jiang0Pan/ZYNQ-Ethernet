@@ -1,0 +1,44 @@
+/*
+  ** @file           : mt25ql512.h
+  ** @brief          : The Device Of MT25QL512(QSPI FLASH Device) Header File
+  **
+  ** @attention
+  **
+  ** Copyright (c) 2020 ChengDuHangke.
+  ** All rights reserved.
+  **
+  ** This software is licensed by ChengDuHangke under Ultimate Liberty license
+  **
+*/
+
+
+#ifndef SRC_INCLUDE_DEVICE_QSPI_MT25QL512_C_
+#define SRC_INCLUDE_DEVICE_QSPI_MT25QL512_C_
+
+
+/*
+  ** Include
+*/
+#include "xil_types.h"
+
+
+/*
+  ** Function Prototype
+*/
+void update_flash(u8 *buffer, u32 length ,u32 crcval);
+u8 Erase_Flash(u32 Address, u32 ByteCount, u8 *WriteBfrPtr);
+u8 Write_Flash(u32 Address, u32 ByteCount, u8 Command, u8 *WriteBfrPtr);
+u8 Read_Flash_ID(u8 *WriteBfrPtr, u8 *ReadBfrPtr);
+u8 Read_Flash(u32 Address, u32 ByteCount, u8 Command, u8 *WriteBfrPtr, u8 *ReadBfrPtr);
+u8 SendBankSelect(u8 *WriteBfrPtr, u32 BankSel);
+u8 Erase_Bulk(u8 *WriteBfrPtr);
+u8 Erase_Die(u8 *WriteBfrPtr);
+u32 GetRealAddr(u32 Address);
+
+
+#endif /* SRC_INCLUDE_DEVICE_QSPI_MT25QL512_C_ */
+
+
+/*
+  ** (C) COPYRIGHT ChengDuHangke END OF FILE
+*/

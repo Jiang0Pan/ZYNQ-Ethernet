@@ -1,0 +1,932 @@
+/*
+  ** @file           : w25q256.c
+  ** @brief          : The Device Of W25Q256(Supported W25Q64¡¢W25Q512)
+  ** 				   (SPI Flash Device) Header File
+  **
+  ** @attention
+  **
+  ** Copyright (c) 2020 ChengDuHangke.
+  ** All rights reserved.
+  **
+  ** This software is licensed by ChengDuHangke under Ultimate Liberty license
+  **
+*/
+
+
+/*
+  ** Include
+*/
+/* EDK generated parameters */
+#include "xparameters.h"
+/* SPI device driver */
+#include "spi_bus.h"
+#include "debug_config.h"
+#include "return_val.h"
+#include "w25q256.h"
+
+
+/*
+  ** Define
+*/
+/* Page Program command */
+#define 	COMMAND_PAGE_PROGRAM			(0x02)
+/* Quad Input Fast Program */
+#define 	COMMAND_QUAD_WRITE				(0x32)
+/* Random read command */
+#define 	COMMAND_RANDOM_READ				(0x03)
+/* Dual Output Fast Read */
+#define 	COMMAND_DUAL_READ				(0x3B)
+/* Dual IO Fast Read */
+#define 	COMMAND_DUAL_IO_READ			(0xBB)
+/* Quad Output Fast Read */
+#define 	COMMAND_QUAD_READ				(0x6B)
+/* Quad IO Fast Read */
+#define 	COMMAND_QUAD_IO_READ			(0xEB)
+/* Write Enable command */
+#define		COMMAND_WRITE_ENABLE			(0x06)
+/* Sector Erase command */
+#define 	COMMAND_SECTOR_ERASE			(0xD8)
+/* Bulk Erase command */
+#define 	COMMAND_BULK_ERASE				(0xC7)
+/* Status read command */
+#define 	COMMAND_STATUSREG_READ			(0x05)
+
+
+/*
+  ** This definitions specify the EXTRA bytes in each of the command
+  ** transactions. This count includes Command byte, address bytes and any
+  ** don't care bytes needed.
+*/
+/* Read/Write extra bytes */
+#define 	READ_WRITE_EXTRA_BYTES			(4)
+/* Write Enable bytes */
+#define		WRITE_ENABLE_BYTES				(1)
+/* Sector erase extra bytes */
+#define 	SECTOR_ERASE_BYTES				(4)
+/* Bulk erase extra bytes */
+#define 	BULK_ERASE_BYTES				(1)
+/* Status read bytes count */
+#define 	STATUS_READ_BYTES				(2)
+/* Status write bytes count */
+#define 	STATUS_WRITE_BYTES				(2)
+
+/*
+  ** Flash not busy mask in the status register of the flash device.
+*/
+/* Ready mask */
+#define 	FLASH_SR_IS_READY_MASK			(0x01)
+/*
+  ** Number of bytes per page in the flash device.
+*/
+#define 	PAGE_SIZE						(256)
+/*
+  ** Address of the page to perform Erase, Write and Read operations.
+*/
+#define 	FLASH_TEST_ADDRESS				(0x00)
+/*
+  ** Byte Positions.
+*/
+/* Byte 1 position */
+#define 	BYTE1							(0)
+/* Byte 2 position */
+#define 	BYTE2							(1)
+/* Byte 3 position */
+#define 	BYTE3							(2)
+/* Byte 4 position */
+#define 	BYTE4							(3)
+/* Byte 5 position */
+#define 	BYTE5							(4)
+/* Byte 6 position */
+#define 	BYTE6							(5)
+/* Byte 7 position */
+#define 	BYTE7							(6)
+/* Byte 8 position */
+#define 	BYTE8							(7)
+
+/*
+  ** The following definitions specify the number of dummy bytes to ignore in the
+  ** data read from the flash, through various Read commands. This is apart from
+  ** the dummy bytes returned in response to the command and address transmitted.
+*/
+/*
+  ** After transmitting Dual Read command and address on DIO0, the quad spi device
+  ** configures DIO0 and DIO1 in input mode and receives data on both DIO0 and
+  ** DIO1 for 8 dummy clock cycles. So we end up with 16 dummy bits in DRR. The
+  ** same logic applies Quad read command, so we end up with 4 dummy bytes in that
+  ** case.
+*/
+#define 	DUAL_READ_DUMMY_BYTES			(2)
+#define 	QUAD_READ_DUMMY_BYTES			(4)
+#define 	DUAL_IO_READ_DUMMY_BYTES		(1)
+#define 	QUAD_IO_READ_DUMMY_BYTES		(3)
+
+
+/*
+  ** The following variables are shared between non-interrupt processing and
+  ** interrupt processing such that they must be global.
+*/
+volatile static int TransferInProgress;
+
+/*
+ * The following variable tracks any errors that occur during interrupt
+ * processing.
+ */
+static int ErrorCount;
+
+/*
+  ** Buffers used during read and write transactions.
+*/
+static u8 ReadBuffer[PAGE_SIZE + READ_WRITE_EXTRA_BYTES + 4];
+static u8 WriteBuffer[PAGE_SIZE + READ_WRITE_EXTRA_BYTES];
+
+/*
+  ** Byte offset value written to Flash. This needs to be redefined for writing
+  ** different patterns of data to the Flash device.
+*/
+static u8 TestByte = 0x20;
+
+
+//int main(void)
+//{
+//	int Status;
+//	u32 Index;
+//	u32 Address;
+//	XSpi_Config *ConfigPtr;	/* Pointer to Configuration data */
+//
+//	/*
+//	 * Initialize the SPI driver so that it's ready to use,
+//	 * specify the device ID that is generated in xparameters.h.
+//	 */
+//	ConfigPtr = XSpi_LookupConfig(SPI_DEVICE_ID);
+//	if (ConfigPtr == NULL) {
+//		return XST_DEVICE_NOT_FOUND;
+//	}
+//
+//	Status = XSpi_CfgInitialize(&Spi, ConfigPtr,
+//				  ConfigPtr->BaseAddress);
+//	if (Status != XST_SUCCESS) {
+//		return XST_FAILURE;
+//	}
+//
+//	/*
+//	 * Connect the SPI driver to the interrupt subsystem such that
+//	 * interrupts can occur. This function is application specific.
+//	 */
+//	Status = SetupInterruptSystem(&Spi);
+//	if(Status != XST_SUCCESS) {
+//		return XST_FAILURE;
+//	}
+//
+//	/*
+//	 * Setup the handler for the SPI that will be called from the interrupt
+//	 * context when an SPI status occurs, specify a pointer to the SPI
+//	 * driver instance as the callback reference so the handler is able to
+//	 * access the instance data.
+//	 */
+//	XSpi_SetStatusHandler(&Spi, &Spi, (XSpi_StatusHandler)SpiHandler);
+//
+//	/*
+//	 * Set the SPI device as a master and in manual slave select mode such
+//	 * that the slave select signal does not toggle for every byte of a
+//	 * transfer, this must be done before the slave select is set.
+//	 */
+//	Status = XSpi_SetOptions(&Spi, XSP_MASTER_OPTION |
+//				 XSP_MANUAL_SSELECT_OPTION);
+//	if(Status != XST_SUCCESS) {
+//		return XST_FAILURE;
+//	}
+//
+//	/*
+//	 * Select the quad flash device on the SPI bus, so that it can be
+//	 * read and written using the SPI bus.
+//	 */
+//	Status = XSpi_SetSlaveSelect(&Spi, SPI_SELECT);
+//	if(Status != XST_SUCCESS) {
+//		return XST_FAILURE;
+//	}
+//
+//	/*
+//	 * Start the SPI driver so that interrupts and the device are enabled.
+//	 */
+//	XSpi_Start(&Spi);
+//
+//	/*
+//	 * Specify the address in the Quad Serial Flash for the Erase/Write/Read
+//	 * operations.
+//	 */
+//	Address = FLASH_TEST_ADDRESS;
+//
+//	/*
+//	 * Perform the Write Enable operation.
+//	 */
+//	Status = SpiFlashWriteEnable(&Spi);
+//	if(Status != XST_SUCCESS) {
+//		return XST_FAILURE;
+//	}
+//
+//	/*
+//	 * Perform the Sector Erase operation.
+//	 */
+//	Status = SpiFlashSectorErase(&Spi, Address);
+//	if(Status != XST_SUCCESS) {
+//		return XST_FAILURE;
+//	}
+//
+//	/*
+//	 * Set the Quad Enable (QE) bit in the flash device, so that Quad
+//	 * operations can be performed on the flash.
+//	 */
+//	Status = SpiFlashQuadEnable(&Spi);
+//	if (Status != XST_SUCCESS) {
+//		return XST_FAILURE;
+//	}
+//
+//	/*
+//	 * Perform the Write Enable operation.
+//	 */
+//	Status = SpiFlashWriteEnable(&Spi);
+//	if(Status != XST_SUCCESS) {
+//		return XST_FAILURE;
+//	}
+//
+//	/*
+//	 * Write the data to the Page using Page Program command.
+//	 */
+//	Status = SpiFlashWrite(&Spi, Address, PAGE_SIZE, COMMAND_PAGE_PROGRAM);
+//	if(Status != XST_SUCCESS) {
+//		return XST_FAILURE;
+//	}
+//
+//	/*
+//	 * Clear the read Buffer.
+//	 */
+//	for(Index = 0; Index < PAGE_SIZE + READ_WRITE_EXTRA_BYTES; Index++) {
+//		ReadBuffer[Index] = 0x0;
+//	}
+//
+//	/*
+//	 * Read the data from the Page using Random Read command.
+//	 */
+//	Status = SpiFlashRead(&Spi, Address, PAGE_SIZE, COMMAND_RANDOM_READ);
+//	if(Status != XST_SUCCESS) {
+//		return XST_FAILURE;
+//	}
+//
+//	/*
+//	 * Compare the data read against the data written.
+//	 */
+//	for(Index = 0; Index < PAGE_SIZE; Index++) {
+//		if(ReadBuffer[Index + READ_WRITE_EXTRA_BYTES] !=
+//					(u8)(Index + TestByte)) {
+//			return XST_FAILURE;
+//		}
+//	}
+//
+//	/*
+//	 * Clear the Read Buffer.
+//	 */
+//	for(Index = 0; Index < PAGE_SIZE + READ_WRITE_EXTRA_BYTES +
+//	    DUAL_READ_DUMMY_BYTES; Index++) {
+//		ReadBuffer[Index] = 0x0;
+//	}
+//
+//	/*
+//	 * Read the data from the Page using Dual Output Fast Read command.
+//	 */
+//	Status = SpiFlashRead(&Spi, Address, PAGE_SIZE, COMMAND_DUAL_READ);
+//	if(Status != XST_SUCCESS) {
+//		return XST_FAILURE;
+//	}
+//
+//	/*
+//	 * Compare the data read against the data written.
+//	 */
+//	for(Index = 0; Index < PAGE_SIZE; Index++) {
+//		if(ReadBuffer[Index + READ_WRITE_EXTRA_BYTES +
+//				DUAL_READ_DUMMY_BYTES] !=
+//					(u8)(Index + TestByte)) {
+//			return XST_FAILURE;
+//		}
+//	}
+//
+//	/*
+// 	 * Perform the Write Enable operation.
+// 	 */
+//	Status = SpiFlashWriteEnable(&Spi);
+//	if(Status != XST_SUCCESS) {
+//		return XST_FAILURE;
+//	}
+//
+//	/*
+//	 * Write the data to the next Page using Quad Fast Write command.
+//	 */
+//	TestByte = 0x09;
+//	Address += PAGE_SIZE;
+//	Status = SpiFlashWrite(&Spi, Address, PAGE_SIZE, COMMAND_QUAD_WRITE);
+//	if(Status != XST_SUCCESS) {
+//		return XST_FAILURE;
+//	}
+//
+//	/*
+//	 * Wait while the Flash is busy.
+//	 */
+//	Status = SpiFlashWaitForFlashReady();
+//	if(Status != XST_SUCCESS) {
+//		return XST_FAILURE;
+//	}
+//
+//	/*
+//	 * Clear the read Buffer.
+//	 */
+//	for(Index = 0; Index < PAGE_SIZE + READ_WRITE_EXTRA_BYTES;
+//		Index++) {
+//		ReadBuffer[Index] = 0x0;
+//	}
+//
+//	/*
+//	 * Read the data from the Page using Normal Read command.
+//	 */
+//	Status = SpiFlashRead(&Spi, Address, PAGE_SIZE, COMMAND_RANDOM_READ);
+//	if(Status != XST_SUCCESS) {
+//		return XST_FAILURE;
+//	}
+//
+//	/*
+//	 * Compare the data read against the data written.
+//	 */
+//	for(Index = 0; Index < PAGE_SIZE; Index++) {
+//		if(ReadBuffer[Index + READ_WRITE_EXTRA_BYTES] !=
+//					(u8)(Index + TestByte)) {
+//			return XST_FAILURE;
+//		}
+//	}
+//
+//	/*
+// 	 * Clear the read Buffer.
+// 	 */
+//	for(Index = 0; Index < PAGE_SIZE + READ_WRITE_EXTRA_BYTES +
+//	    QUAD_READ_DUMMY_BYTES; Index++) {
+//		ReadBuffer[Index] = 0x0;
+//	}
+//
+//	/*
+//	 * Read the data from the Page using Quad Output Fast Read command.
+//	 */
+//	Status = SpiFlashRead(&Spi, Address, PAGE_SIZE, COMMAND_QUAD_READ);
+//	if(Status != XST_SUCCESS) {
+//		return XST_FAILURE;
+//	}
+//
+//	/*
+//	 * Compare the data read against the data written.
+//	 */
+//	for(Index = 0; Index < PAGE_SIZE; Index++) {
+//		if(ReadBuffer[Index + READ_WRITE_EXTRA_BYTES +
+//				QUAD_READ_DUMMY_BYTES] !=
+//					(u8)(Index + TestByte)) {
+//			return XST_FAILURE;
+//		}
+//	}
+//
+//	/*
+//	 * Enable High Performance Mode so that data can be read from the flash
+//	 * using DIO and QIO read commands.
+//	 */
+//	Status = SpiFlashEnableHPM(&Spi);
+//	if(Status != XST_SUCCESS) {
+//		return XST_FAILURE;
+//	}
+//
+//	/*
+//	 * Clear the read Buffer.
+//	 */
+//	for(Index = 0; Index < PAGE_SIZE + READ_WRITE_EXTRA_BYTES +
+//	    DUAL_IO_READ_DUMMY_BYTES; Index++) {
+//		ReadBuffer[Index] = 0x0;
+//	}
+//
+//	/*
+//	 * Read the data from the Page using Dual IO Fast Read command.
+//	 */
+//	Status = SpiFlashRead(&Spi, Address, PAGE_SIZE, COMMAND_DUAL_IO_READ);
+//	if(Status != XST_SUCCESS) {
+//		return XST_FAILURE;
+//	}
+//
+//	/*
+//	 * Compare the data read against the data written.
+//	 */
+//	for(Index = 0; Index < PAGE_SIZE; Index++) {
+//		if(ReadBuffer[Index + READ_WRITE_EXTRA_BYTES +
+//				DUAL_IO_READ_DUMMY_BYTES] !=
+//					(u8)(Index + TestByte)) {
+//			return XST_FAILURE;
+//		}
+//	}
+//
+//	/*
+//	 * Clear the read Buffer.
+//	 */
+//	for(Index = 0; Index < PAGE_SIZE + READ_WRITE_EXTRA_BYTES +
+//	    QUAD_IO_READ_DUMMY_BYTES; Index++) {
+//		ReadBuffer[Index] = 0x0;
+//	}
+//
+//	/*
+//	 * Read the data from the Page using Quad IO Fast Read command.
+//	 */
+//	Status = SpiFlashRead(&Spi, Address, PAGE_SIZE, COMMAND_QUAD_IO_READ);
+//	if(Status != XST_SUCCESS) {
+//		return XST_FAILURE;
+//	}
+//
+//	/*
+//	 * Compare the data read against the data written.
+//	 */
+//	for(Index = 0; Index < PAGE_SIZE; Index++) {
+//		if(ReadBuffer[Index + READ_WRITE_EXTRA_BYTES +
+//				QUAD_IO_READ_DUMMY_BYTES] !=
+//					(u8)(Index + TestByte)) {
+//			return XST_FAILURE;
+//		}
+//	}
+//
+//	xil_printf("Successfully ran Spi winbond flash quad Example\r\n");
+//	return XST_SUCCESS;
+//}
+
+
+/*
+  ** Function Name        : Write_Enable_Flash
+  ** Function Description : Enables writes to the Winbond Serial Flash memory
+  ** Function Parameter   : Void
+  ** Function Return      : WRITE_SUCCESS       : Enable Writes Success
+  ** 						WRITE_FAILED        : Enable Writes Failed
+  ** Notes				  : None
+*/
+u8  Write_Enable_Flash(void)
+{
+	u8 status;
+
+	/* Wait while the Flash is busy. */
+	status = Wait_For_Flash_Ready();
+	if(WAIT_SUCCESS != status)  {
+		return ENABLE_FAILED;
+	}
+
+	/* Prepare the WriteBuffer. */
+	WriteBuffer[BYTE1] = COMMAND_WRITE_ENABLE;
+
+	/* Initiate the Transfer. */
+	status = Spi_ReadWrite(WriteBuffer, NULL, WRITE_ENABLE_BYTES);
+	if(WRITE_READ_SUCCESS != status) {
+		return ENABLE_FAILED;
+	}
+
+	return ENABLE_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Write_Flash
+  ** Function Description : Writes Data to the Winbond Serial Flash memory
+  ** Function Parameter   : Addr                : Flash Address
+  ** 						ByteCount           : Need To Writes Data Size
+  ** 						WriteCmd            : Writes Data Command
+  ** 						WriteBuff           : Writes Data Buffer Address
+  ** Function Return      : WRITE_SUCCESS       : Writes Data Success
+  ** 						WRITE_FAILED        : Writes Data Failed
+  ** Notes				  : None
+*/
+u8 Write_Flash(u32 Addr, u32 ByteCount, u8 WriteCmd, u8 * WriteBuff)
+{
+	u32 Index;
+	u8 status;
+
+	/* Wait while the Flash is busy. */
+	status = Wait_For_Flash_Ready();
+	if(WAIT_SUCCESS != status) {
+		return WRITE_FAILED;
+	}
+	/* Prepare the WriteBuffer. */
+	WriteBuffer[BYTE1] = WriteCmd;
+	WriteBuffer[BYTE2] = (u8) (Addr >> 16);
+	WriteBuffer[BYTE3] = (u8) (Addr >> 8);
+	WriteBuffer[BYTE4] = (u8) Addr;
+	/*
+	  ** Fill in the TEST data that is to be written into
+	  ** the Winbond Serial Flash device.
+	*/
+	for(Index = 0; Index < ByteCount; Index++) {
+		WriteBuffer[Index + READ_WRITE_EXTRA_BYTES] = \
+				WriteBuff[Index];
+	}
+
+	/* Transfer Write Data Command */
+	status = Spi_ReadWrite(WriteBuff, NULL,(ByteCount + READ_WRITE_EXTRA_BYTES));
+	if(WRITE_READ_SUCCESS != status) {
+		return WRITE_FAILED;
+	}
+
+	return WRITE_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Read_Flash
+  ** Function Description : Read Data From the Winbond Serial Flash memory
+  ** Function Parameter   : Addr                : Flash Address
+  ** 						ByteCount           : Need To Reads Data Size
+  ** 						ReadCmd             : Reads Data Command
+  ** 						WriteBuff           : Writes Data Buffer Address
+  ** Function Return      : READ_SUCCESS        : reads Data Success
+  ** 						READ_FAILED         : reads Data Failed
+  ** Notes				  : None
+*/
+u8 Read_Flash(u32 Addr, u32 ByteCount, u8 ReadCmd)
+{
+	u8 status;
+
+	/* Wait while the Flash is busy. */
+	status = Wait_For_Flash_Ready();
+	if(WAIT_SUCCESS != status) {
+		return WAIT_SUCCESS;
+	}
+
+	/* Prepare the WriteBuffer. */
+	WriteBuffer[BYTE1] = ReadCmd;
+	WriteBuffer[BYTE2] = (u8) (Addr >> 16);
+	WriteBuffer[BYTE3] = (u8) (Addr >> 8);
+	WriteBuffer[BYTE4] = (u8) Addr;
+
+	if (ReadCmd == COMMAND_DUAL_READ) {
+		ByteCount += 2;
+	}
+	else if (ReadCmd == COMMAND_DUAL_IO_READ) {
+		ByteCount++;
+	}
+	else if (ReadCmd == COMMAND_QUAD_IO_READ) {
+		ByteCount += 3;
+	}
+	else if (ReadCmd==COMMAND_QUAD_READ) {
+		ByteCount += 4;
+	}
+
+	/* Transfer Read Data Command */
+	status = Spi_ReadWrite(WriteBuffer, ReadBuffer, (ByteCount + READ_WRITE_EXTRA_BYTES));
+	if(WRITE_READ_SUCCESS != status) {
+		return READ_FAILED;
+	}
+
+	return READ_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Erase_Flash_Bulk
+  ** Function Description : Erase Bulk From the Winbond Serial Flash Memory
+  ** Function Parameter   : Void
+  ** Function Return      : ERASE_SUCCESS       : Erase Bulk Success
+  ** 						ERASE_FAILED        : Erase Bulk Failed
+  ** Notes				  : None
+*/
+u8 Erase_Flash_Bulk(void)
+{
+	u8 status;
+
+	/* Wait while the Flash is busy. */
+	status = Wait_For_Flash_Ready();
+	if(WAIT_SUCCESS != status) {
+		return ERASE_FAILED;
+	}
+
+	/* Prepare the WriteBuffer. */
+	WriteBuffer[BYTE1] = COMMAND_BULK_ERASE;
+
+	/* Send Erase BULK Command */
+	status = Spi_ReadWrite(WriteBuffer, NULL, BULK_ERASE_BYTES);
+	if(WRITE_READ_SUCCESS != status) {
+		return ERASE_FAILED;
+	}
+
+	return ERASE_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Erase_Sector_Flash
+  ** Function Description : Erase Sector From the Winbond Serial Flash Memory
+  ** Function Parameter   : Addr                : Need To Erase Flash Addr
+  ** Function Return      : ERASE_SUCCESS       : Erase Sector Success
+  ** 						ERASE_FAILED        : Erase Sector Failed
+  ** Notes				  : None
+*/
+u8 Erase_Sector_Flash(u32 Addr)
+{
+	u8 status;
+
+	/* Wait while the Flash is busy. */
+	status = Wait_For_Flash_Ready();
+	if(WAIT_SUCCESS != status) {
+		return ERASE_FAILED;
+	}
+
+	/* Prepare the WriteBuffer. */
+	WriteBuffer[BYTE1] = COMMAND_SECTOR_ERASE;
+	WriteBuffer[BYTE2] = (u8) (Addr >> 16);
+	WriteBuffer[BYTE3] = (u8) (Addr >> 8);
+	WriteBuffer[BYTE4] = (u8) (Addr);
+
+	/* Initiate the Transfer. */
+	status = Spi_ReadWrite(WriteBuffer, NULL, SECTOR_ERASE_BYTES);
+	if(WRITE_READ_SUCCESS != status) {
+		return ERASE_FAILED;
+	}
+
+	return ERASE_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Get_Flash_Status
+  ** Function Description : Reads The Status Register Of The Winbond Flash Memory
+  ** Function Parameter   : Void
+  ** Function Return      : GET_SUCCESS         : Read Status Register Success
+  ** 						GET_FAILED          : Read Status Register Failed
+  ** Notes				  : None
+*/
+u8 Get_Flash_Status(void)
+{
+	u8 status;
+	/* Prepare the Write Buffer. */
+	WriteBuffer[BYTE1] = COMMAND_STATUSREG_READ;
+
+	/* Transfer Get Flash Status Command */
+	status = Spi_ReadWrite(WriteBuffer, ReadBuffer, STATUS_READ_BYTES);
+	if(WRITE_READ_SUCCESS != status) {
+		return GET_FAILED;
+	}
+	return GET_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Quad_Enable_Flash
+  ** Function Description : Enable Quad Spi Mode Of The Winbond Flash Memory
+  ** Function Parameter   : Void
+  ** Function Return      : GET_SUCCESS         : Read Status Register Success
+  ** 						GET_FAILED          : Read Status Register Failed
+  ** Notes				  : None
+*/
+u8 Quad_Enable_Flash(void)
+{
+	int status;
+
+	/* Perform the Write Enable operation. */
+	status = Write_Enable_Flash();
+	if(ENABLE_SUCCESS != status) {
+		return ENABLE_FAILED;
+	}
+
+	/* Wait while the Flash is busy. */
+	status = Wait_For_Flash_Ready();
+	if(WAIT_SUCCESS != status) {
+		return WAIT_FAILED;
+	}
+
+	/* Prepare the WriteBuffer. */
+	WriteBuffer[BYTE1] = 0x01;
+	WriteBuffer[BYTE2] = 0x00;
+	/* QE = 1 */
+	WriteBuffer[BYTE3] = 0x02;
+
+	/* Initiate the Transfer. */
+	status = Spi_ReadWrite(WriteBuffer, NULL, 3);
+	if(WRITE_READ_SUCCESS != status) {
+		return ENABLE_FAILED;
+	}
+
+	/* Wait while the Flash is busy. */
+	status = Wait_For_Flash_Ready();
+	if(WAIT_SUCCESS != status) {
+		return ENABLE_FAILED;
+	}
+
+	/* Prepare the Write Buffer. */
+	WriteBuffer[BYTE1] = 0x35;
+
+	/* Transfer Get Flash Status Command */
+	status = Spi_ReadWrite(WriteBuffer, ReadBuffer, STATUS_READ_BYTES);
+	if(WRITE_READ_SUCCESS != status) {
+		return ENABLE_FAILED;
+	}
+
+	return ENABLE_SUCCESS;
+}
+
+/*****************************************************************************/
+/**
+*
+* This function enabled High Performance Mode in Winbond flash, so that data can
+* be read from the flash using DIO and QIO commands.
+*
+* @param	None
+*
+* @return	XST_SUCCESS if successful else XST_FAILURE.
+*
+* @note		None.
+*
+******************************************************************************/
+u8 Enable_HPM_Flash(void)
+{
+	int status;
+
+	/* Perform the Write Enable operation. */
+	status = Write_Enable_Flash();
+	if(ENABLE_SUCCESS != status) {
+		return XST_FAILURE;
+	}
+
+	/* Wait while the Flash is busy. */
+	status = SpiFlashWaitForFlashReady();
+	if(status != XST_SUCCESS) {
+		return XST_FAILURE;
+	}
+
+	/* Prepare the WriteBuffer. */
+	WriteBuffer[BYTE1] = 0xA3;
+
+	/* Initiate the Transfer. */
+	Status = XSpi_Transfer(SWriteBuffer, NULL, 4);
+	if(status != XST_SUCCESS) {
+		return XST_FAILURE;
+	}
+
+	/*
+	 * Wait till the Transfer is complete and check if there are any errors
+	 * in the transaction..
+	 */
+	while(TransferInProgress);
+	if(ErrorCount != 0) {
+		ErrorCount = 0;
+		return XST_FAILURE;
+	}
+
+	return XST_SUCCESS;
+}
+
+
+/*
+  ** Function Name        : Wait_For_Flash_Ready
+  ** Function Description : Waits till the Winbond serial Flash is ready to accept next
+  ** Function Parameter   : Void
+  ** Function Return      : WAIT_SUCCESS        : Wait Operation Success
+  ** 						GET_FAILED          : Wait Operation Failed
+  ** Notes				  : None
+*/
+u8 Wait_For_Flash_Ready(void)
+{
+	u8 status;
+	u8 StatusReg;
+
+	while(1) {
+		/* Get the Status Register. */
+		status = Get_Flash_Status();
+		if(GET_SUCCESS != status) {
+			return WAIT_FAILED;
+		}
+		/*
+		  ** Check if the flash is ready to accept the next command.
+		  ** If so break.
+		*/
+		StatusReg = ReadBuffer[1];
+		if ((StatusReg & FLASH_SR_IS_READY_MASK) == 0) {
+			break;
+		}
+	}
+	return WAIT_SUCCESS;
+}
+
+
+/*****************************************************************************/
+/**
+*
+* This function is the handler which performs processing for the SPI driver.
+* It is called from an interrupt context such that the amount of processing
+* performed should be minimized. It is called when a transfer of SPI data
+* completes or an error occurs.
+*
+* This handler provides an example of how to handle SPI interrupts and
+* is application specific.
+*
+* @param	CallBackRef is the upper layer callback reference passed back
+*		when the callback function is invoked.
+* @param	StatusEvent is the event that just occurred.
+* @param	ByteCount is the number of bytes transferred up until the event
+*		occurred.
+*
+* @return	None.
+*
+* @note		None.
+*
+******************************************************************************/
+void SpiHandler(void *CallBackRef, u32 StatusEvent, unsigned int ByteCount)
+{
+	/*
+	 * Indicate the transfer on the SPI bus is no longer in progress
+	 * regardless of the status event.
+	 */
+	TransferInProgress = FALSE;
+
+	/*
+	 * If the event was not transfer done, then track it as an error.
+	 */
+	if (StatusEvent != XST_SPI_TRANSFER_DONE) {
+		ErrorCount++;
+	}
+}
+
+/*****************************************************************************/
+/**
+*
+* This function setups the interrupt system such that interrupts can occur
+* for the Spi device. This function is application specific since the actual
+* system may or may not have an interrupt controller. The Spi device could be
+* directly connected to a processor without an interrupt controller.  The
+* user should modify this function to fit the application.
+*
+* @param	SpiPtr is a pointer to the instance of the Spi device.
+*
+* @return	XST_SUCCESS if successful, otherwise XST_FAILURE.
+*
+* @note		None
+*
+******************************************************************************/
+static int SetupInterruptSystem(XSpi *SpiPtr)
+{
+
+	int Status;
+
+	/*
+	 * Initialize the interrupt controller driver so that
+	 * it's ready to use, specify the device ID that is generated in
+	 * xparameters.h
+	 */
+	Status = XIntc_Initialize(&InterruptController, INTC_DEVICE_ID);
+	if(Status != XST_SUCCESS) {
+		return XST_FAILURE;
+	}
+
+	/*
+	 * Connect a device driver handler that will be called when an interrupt
+	 * for the device occurs, the device driver handler performs the
+	 * specific interrupt processing for the device
+	 */
+	Status = XIntc_Connect(&InterruptController,
+				SPI_INTR_ID,
+				(XInterruptHandler)XSpi_InterruptHandler,
+				(void *)SpiPtr);
+	if(Status != XST_SUCCESS) {
+		return XST_FAILURE;
+	}
+
+	/*
+	 * Start the interrupt controller such that interrupts are enabled for
+	 * all devices that cause interrupts, specific real mode so that
+	 * the SPI can cause interrupts through the interrupt controller.
+	 */
+	Status = XIntc_Start(&InterruptController, XIN_REAL_MODE);
+	if(Status != XST_SUCCESS) {
+		return XST_FAILURE;
+	}
+
+	/*
+	 * Enable the interrupt for the SPI.
+	 */
+	XIntc_Enable(&InterruptController, SPI_INTR_ID);
+
+
+	/*
+	 * Initialize the exception table.
+	 */
+	Xil_ExceptionInit();
+
+	/*
+	 * Register the interrupt controller handler with the exception table.
+	 */
+	Xil_ExceptionRegisterHandler(XIL_EXCEPTION_ID_INT,
+				(Xil_ExceptionHandler)XIntc_InterruptHandler,
+				&InterruptController);
+
+	/*
+	 * Enable non-critical exceptions.
+	 */
+	Xil_ExceptionEnable();
+
+	return XST_SUCCESS;
+}
+
+
+/*
+  ** (C) COPYRIGHT ChengDuHangke END OF FILE
+*/

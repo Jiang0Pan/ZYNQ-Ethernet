@@ -1,0 +1,6 @@
+the_ROM_image:
+{
+	[bootloader]E:\Benchmaking_DI\Software\FSBL\Debug\FSBL.elf
+	E:\Benchmaking_DI\Software\pl004_chk200728_i_top_hw_platform_0\pl004_chk200728_i_top.bit
+	E:\Benchmaking_DI\Software\HRIF_2010\Debug\HRIF_2010.elf
+}
