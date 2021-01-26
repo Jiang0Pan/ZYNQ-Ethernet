@@ -5502,3 +5502,5 @@ targets -set -nocase -filter {name =~ "ARM*#0" && jtag_cable_name =~ "Platform C
 con
 ----------------End of Script----------------
 
+09:06:22 INFO  : Launching XSDB server: xsdb.bat D:/Xilinx/SDK/2015.4/scripts/xsdb/xsdb/xsdb-server.tcl
+09:06:25 INFO  : XSDB server has started successfully.

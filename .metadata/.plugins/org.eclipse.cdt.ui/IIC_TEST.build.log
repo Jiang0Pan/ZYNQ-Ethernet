@@ -1,12 +1,23 @@
-09:27:45 **** Auto Build of configuration Debug for project IIC_TEST ****
+13:53:57 **** Auto Build of configuration Debug for project IIC_TEST ****
 make all 
-'Building target: IIC_TEST.elf'
-'Invoking: ARM gcc linker'
-arm-xilinx-eabi-gcc -Wl,-T -Wl,../src/lscript.ld -L../../IIC_TEST_bsp/ps7_cortexa9_0/lib -o "IIC_TEST.elf"  ./src/main.o   -Wl,--start-group,-lxil,-lgcc,-lc,--end-group
-../../IIC_TEST_bsp/ps7_cortexa9_0/lib\libxil.a(xil-crt0.o): In function `_start':
-E:\Benchmaking_DI\Software\IIC_TEST_bsp\ps7_cortexa9_0\libsrc\standalone_v5_3\src/xil-crt0.S:133: undefined reference to `main'
-collect2.exe: error: ld returned 1 exit status
-make: *** [IIC_TEST.elf] ´íÎó 1
+'Building file: ../src/main.c'
+'Invoking: ARM gcc compiler'
+arm-xilinx-eabi-gcc -Wall -O0 -g3 -c -fmessage-length=0 -MT"src/main.o" -I../../IIC_TEST_bsp/ps7_cortexa9_0/include -MMD -MP -MF"src/main.d" -MT"src/main.d" -o "src/main.o" "../src/main.c"
+../src/main.c: In function 'main':
+../src/main.c:47:2: error: unknown type name 'XIic_Config'
+  XIic_Config *ConfigPtr; /* Pointer to configuration data */
+  ^
+../src/main.c:47:15: warning: unused variable 'ConfigPtr' [-Wunused-variable]
+  XIic_Config *ConfigPtr; /* Pointer to configuration data */
+               ^
+../src/main.c:46:6: warning: unused variable 'Status' [-Wunused-variable]
+  int Status;
+      ^
+../src/main.c: At top level:
+../src/main.c:42:15: warning: 'Iic' defined but not used [-Wunused-variable]
+ static XIicPs Iic;  /**< Instance of the IIC Device */
+               ^
+make: *** [src/main.o] ´íÎó 1
 
-09:27:47 Build Finished (took 1s.848ms)
+13:53:59 Build Finished (took 1s.514ms)
 

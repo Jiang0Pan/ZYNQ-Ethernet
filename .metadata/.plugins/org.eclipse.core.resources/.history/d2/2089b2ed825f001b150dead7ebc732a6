@@ -1,0 +1,35 @@
+/*
+ * main.c
+ *
+ *  Created on: 2021Äê1ÔÂ26ÈÕ
+ *      Author: 31573
+ */
+
+
+/*
+  ** Include
+*/
+#include "xparameters.h"
+#include "xiic.h"
+#include "xil_exception.h"
+#include "xil_printf.h"
+
+
+/*
+  ** Define
+*/
+
+
+int main(void)
+{
+	int Status;
+	XIic_Config *ConfigPtr;	/* Pointer to configuration data */
+
+	while (1)
+	{
+
+	}
+
+	return 0;
+}
+

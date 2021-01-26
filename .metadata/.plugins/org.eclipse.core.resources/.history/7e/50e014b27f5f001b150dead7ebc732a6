@@ -1,0 +1,40 @@
+/*
+ * main.c
+ *
+ *  Created on: 2021Äê1ÔÂ26ÈÕ
+ *      Author: 31573
+ */
+
+
+/*
+  ** Include
+*/
+#include "xparameters.h"
+#include "sleep.h"
+#include "xiicps.h"
+#include "xil_printf.h"
+
+
+/*
+  ** Define
+*/
+#define 		IIC_SCLK_RATE			(100000)
+
+
+#define         debug                   (xil_printf)
+
+
+
+
+int main(void)
+{
+	s32 s32_status;
+
+
+
+	while(1) {
+
+	}
+
+	return 0;
+}

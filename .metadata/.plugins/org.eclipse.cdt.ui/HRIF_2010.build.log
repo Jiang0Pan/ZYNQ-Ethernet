@@ -1,6 +1,37 @@
-19:03:31 **** Incremental Build of configuration Debug for project HRIF_2010 ****
+14:13:02 **** Auto Build of configuration Debug for project HRIF_2010 ****
 make all 
-make: Nothing to be done for `all'.
+'Building file: ../src/System/Device/Ethernet/Operation/operation.c'
+'Invoking: ARM gcc compiler'
+arm-xilinx-eabi-gcc -Wall -O0 -g3 -I../../HRIF_2010_bsp/ps7_cortexa9_0/include -I"E:\Benchmaking_DI\Software\HRIF_2010\src\Include\System_State" -I"E:\Benchmaking_DI\Software\HRIF_2010\src\Include\Main" -I"E:\Benchmaking_DI\Software\HRIF_2010\src\Include\Error_Handler" -I"E:\Benchmaking_DI\Software\HRIF_2010\src\Include\Device\Emio" -I"E:\Benchmaking_DI\Software\HRIF_2010\src\Include\Device\Ethernet" -I"E:\Benchmaking_DI\Software\HRIF_2010\src\Include\Device\IIC" -I"E:\Benchmaking_DI\Software\HRIF_2010\src\Include\Device\QSPI" -I"E:\Benchmaking_DI\Software\HRIF_2010\src\Include\Device\SPI" -I"E:\Benchmaking_DI\Software\HRIF_2010\src\Include\Device\PL" -I"E:\Benchmaking_DI\Software\HRIF_2010\src\Include\Others" -c -fmessage-length=0 -MT"src/System/Device/Ethernet/Operation/operation.o" -MMD -MP -MF"src/System/Device/Ethernet/Operation/operation.d" -MT"src/System/Device/Ethernet/Operation/operation.d" -o "src/System/Device/Ethernet/Operation/operation.o" "../src/System/Device/Ethernet/Operation/operation.c"
+../src/System/Device/Ethernet/Operation/operation.c: In function 'Time_Synchronous':
+../src/System/Device/Ethernet/Operation/operation.c:545:16: warning: unused variable 'point' [-Wunused-variable]
+  Time_Sync_t * point = (Time_Sync_t *)temp->data;
+                ^
+../src/System/Device/Ethernet/Operation/operation.c: In function 'Pattern_Handle':
+../src/System/Device/Ethernet/Operation/operation.c:615:6: warning: variable 'length' set but not used [-Wunused-but-set-variable]
+  u32 length;
+      ^
+../src/System/Device/Ethernet/Operation/operation.c: In function 'DPS_Channel_Status':
+../src/System/Device/Ethernet/Operation/operation.c:879:22: warning: unused variable 'point' [-Wunused-variable]
+  DPS_Channel_Sts_t * point = (DPS_Channel_Sts_t *)temp->data;
+                      ^
+../src/System/Device/Ethernet/Operation/operation.c: In function 'Driver_Board_Firmware':
+../src/System/Device/Ethernet/Operation/operation.c:1415:18: warning: unused variable 'point' [-Wunused-variable]
+  DB_Firmware_t * point = (DB_Firmware_t *)temp->data;
+                  ^
+'Finished building: ../src/System/Device/Ethernet/Operation/operation.c'
+' '
+'Building target: HRIF_2010.elf'
+'Invoking: ARM gcc linker'
+arm-xilinx-eabi-gcc -Wl,-T -Wl,../src/lscript.ld -L../../HRIF_2010_bsp/ps7_cortexa9_0/lib -o "HRIF_2010.elf"  ./src/System/System_State/system_state.o  ./src/System/System_Config/FPGA_Config/fpga_config.o  ./src/System/System_Config/DPS_Config/dps_config.o  ./src/System/Main/main.o  ./src/System/Error_Handler/error_handler.o  ./src/System/Device/SPI/SPI_Device/w25q256.o  ./src/System/Device/SPI/SPI_BUS/spi_bus.o  ./src/System/Device/QSPI/QSPI_Device/mt25ql512.o  ./src/System/Device/QSPI/QSPI_BUS/qspi_bus.o  ./src/System/Device/PL/Axi/axi_lite.o  ./src/System/Device/IIC/IIC_Device/24lc256e.o ./src/System/Device/IIC/IIC_Device/pca9535.o ./src/System/Device/IIC/IIC_Device/tca9548.o  ./src/System/Device/IIC/IIC_BUS/iic_bus.o  ./src/System/Device/Ethernet/Verify/verify.o  ./src/System/Device/Ethernet/Tcp/tcp_server.o  ./src/System/Device/Ethernet/Operation/operation.o  ./src/System/Device/Ethernet/App_Layer_Protocol/app_layer_protocol.o  ./src/System/Device/Ethernet/Ack/ack.o  ./src/System/Device/Emio/system_emio.o   -Wl,--start-group,-lxil,-lfreertos,-lgcc,-lc,--end-group -Wl,--start-group,-lxil,-llwip4,-lgcc,-lc,--end-group
+'Finished building target: HRIF_2010.elf'
+' '
+'Invoking: ARM Print Size'
+arm-xilinx-eabi-size HRIF_2010.elf  |tee "HRIF_2010.elf.size"
+   text	   data	    bss	    dec	    hex	filename
+ 214936	   4372	40933680	41152988	273f1dc	HRIF_2010.elf
+'Finished building: HRIF_2010.elf.size'
+' '
 
-19:03:32 Build Finished (took 786ms)
+14:13:07 Build Finished (took 5s.237ms)
 
